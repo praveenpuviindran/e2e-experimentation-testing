@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 st.set_page_config(page_title="MindLift Experiment Workflow", page_icon="📊", layout="wide")
 
-ROOT = Path(".")
 TABLES_DIR = ROOT / "reports/tables"
 DOCS_DIR = ROOT / "docs"
 RAW_DIR = ROOT / "data/raw"
