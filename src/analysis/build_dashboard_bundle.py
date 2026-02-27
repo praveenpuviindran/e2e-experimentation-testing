@@ -417,13 +417,12 @@ All results are based on synthetic event data that I generated to mimic real pro
 2. Metric definitions and why each metric matters
 3. End-to-end workflow from raw events to decision-ready outputs
 4. Tools used at each step (Python, SQL-style modeling, testing)
-4. Headline results with guardrail interpretation
-5. Funnel, trend, and segment diagnostics
-6. Final recommendation and action plan
+5. Headline results with guardrail interpretation
+6. Funnel, trend, and segment diagnostics
+7. Final recommendation and action plan
 
 ## Documentation included in repo
 - docs/simulation_spec.md
-- docs/preregistration.md
 - reports/experiment_readout.md
 """
     WALKTHROUGH_PATH.write_text(text, encoding="utf-8")

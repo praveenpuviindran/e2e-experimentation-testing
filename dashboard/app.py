@@ -50,20 +50,20 @@ st.title("MindLift Experiment Workflow Project")
 st.subheader("End-to-End Product Analytics + Experimentation")
 st.markdown(
     """
-This is my full workflow project for experimentation analytics.
+I built this project as an end-to-end analytics workflow for a **subscription mental health app** called MindLift.
+The full goal is to show how I go from raw event data to a final product decision.
 
-I built this project to answer a practical product question:
-**If onboarding is redesigned, do more users reach meaningful activation without harming user experience?**
+The core project question is:
+**Does a redesigned onboarding flow help new users reach activation, while keeping user experience guardrails healthy?**
 
-**Important context:** This project uses **synthetic data** (not real user or patient data).
-I made this choice intentionally so I can share a fully reproducible end-to-end experimentation workflow
-without privacy risk or restricted production logs. The synthetic dataset is designed to behave like a real
-product event stream (seasonality, duplicates, missingness, noncompliance, and segment differences).
+**Important context:** every dataset here is **synthetic** (no real user or patient data).
+I generated this data so the project can be public, reproducible from a fresh clone, and still realistic enough to
+practice production-style analytics (seasonality, noisy events, duplicates, missing fields, and rollout noncompliance).
 
-Why onboarding?
-- It is the first critical moment in a subscription app.
-- Small onboarding improvements can compound into retention and revenue gains.
-- If onboarding changes create friction, guardrails catch that risk early.
+Why onboarding is the focus:
+- It is the first high-impact moment in the user journey.
+- Better onboarding can improve both activation and downstream retention.
+- Poor onboarding changes can increase friction, so guardrails are required.
 """
 )
 
@@ -86,7 +86,6 @@ workflow = _read_csv(TABLES_DIR / "dashboard_workflow_steps.csv")
 recommendation = _read_csv(TABLES_DIR / "dashboard_final_recommendation.csv")
 
 simulation_spec = _read_text(DOCS_DIR / "simulation_spec.md")
-prereg = _read_text(DOCS_DIR / "preregistration.md")
 readout = _read_text(ROOT / "reports/experiment_readout.md")
 walkthrough = _read_text(ROOT / "reports/dashboard_walkthrough.md")
 
@@ -324,9 +323,6 @@ This appendix contains the full technical documentation used to build and valida
 
 with st.expander("Simulation Specification", expanded=False):
     st.markdown(simulation_spec or "Missing docs/simulation_spec.md")
-
-with st.expander("Pre-Registration Plan", expanded=False):
-    st.markdown(prereg or "Missing docs/preregistration.md")
 
 with st.expander("Experiment Readout", expanded=False):
     st.markdown(readout or "Missing reports/experiment_readout.md")

@@ -1,21 +1,45 @@
-# MindLift End-to-End Product Experimentation & Metrics Platform
+# MindLift Experiment Workflow Project
 
-Portfolio-grade analytics engineering and experimentation project that simulates a realistic product A/B test for a subscription mental health app.
+This repository is my end-to-end product analytics and experimentation workflow.
+I built it to demonstrate how I can move from raw event data to a clear experiment decision with reproducible engineering.
 
-## Why this matters
-- Demonstrates full-stack product analytics: data generation, warehouse modeling, SQL metrics, statistical experimentation, and reporting.
-- Mirrors real analytics constraints: imperfect rollout, noisy events, dedupe, guardrails, power/MDE, CUPED, and multiple-testing correction.
-- Reproducible and repo-first: run from a fresh clone via Make targets.
+## What This Project Does
+I simulate and analyze an onboarding A/B experiment for **MindLift**, a subscription mental health app.
 
-## Experiment story
-- Product: `MindLift` (subscription mental health app)
-- Test: old onboarding (`control`) vs redesigned onboarding (`treatment`)
-- Randomization: 50/50 at signup
-- Primary metric (locked): `activated_within_7d`
-- Secondary: `retained_d7`, `retained_d30`
-- Guardrails: `cancelled_30d`, `time_to_first_match_hours`, `support_tickets_30d`
+- `control`: original onboarding flow
+- `treatment`: redesigned onboarding flow
+- randomization: 50/50 at signup
+- primary outcome: activation within 7 days
+- secondary outcomes: D7 and D30 retention
+- guardrails: 30-day cancellation, match latency, support tickets
 
-## Repository structure
+## Important Data Note (Synthetic Data)
+All data in this project is synthetic.
+
+I intentionally generated synthetic product events so this repo can be public, reproducible, and safe (no real patient/user records). The generator includes realistic patterns:
+- acquisition-channel differences
+- weekday/weekend seasonality
+- event duplicates and missing fields
+- treatment noncompliance
+- heterogeneous treatment effects by segment
+
+## Why Onboarding?
+Onboarding is the first high-impact product moment. If it improves, activation and retention can improve. If it degrades UX, guardrails should catch that early. This makes onboarding a practical surface for experimentation.
+
+## One-Command Final Deliverable
+Run this from a fresh clone:
+
+```bash
+make final-deliverable
+```
+
+What it does:
+1. Creates/updates `.venv` and installs dependencies
+2. Generates synthetic raw data (`data/raw/*.csv`)
+3. Builds dashboard data tables/readout (`reports/tables/*.csv`, markdown reports)
+4. Launches Streamlit (`http://127.0.0.1:8501`)
+
+## Repository Layout
 ```text
 experimentation-platform/
   README.md
@@ -23,107 +47,116 @@ experimentation-platform/
   requirements.txt
   .env.example
   /src
-    /data_gen
-    /pipeline
-    /analysis
-    /utils
+    /data_gen        # synthetic generator + realism knobs
+    /pipeline        # schema apply, load, QA, metrics build, S3 sync
+    /analysis        # experiment analysis + dashboard bundle build
+    /utils           # config + logging helpers
   /sql
-    /schema
-    /metrics
+    /schema          # DDL
+    /metrics         # funnels, retention, guardrails, readout SQL
+  /dashboard         # Streamlit final deliverable
   /data
     /raw
     /processed
   /reports
     /figures
     /tables
-  /dashboard
-  /tests
   /docs
+    simulation_spec.md
+  /tests
 ```
 
-## Quickstart
-One-command final deliverable (no Postgres required):
-```bash
-make final-deliverable
-```
+## End-to-End Workflow
+### 1) Generate realistic raw events (Python)
+- module: `src/data_gen/generate_data.py`
+- outputs: `dim_users`, `fact_events`, `fact_sessions`, subscriptions, cancellations, support, matches
 
-`make final-deliverable` runs setup + synthetic data generation + dashboard artifact build + Streamlit launch.
+### 2) Load and model warehouse tables (PostgreSQL + SQL)
+- schema: `sql/schema/schema.sql`
+- loader: `src/pipeline/load_to_postgres.py`
+- supports idempotent upserts and staging-table load pattern
 
-Postgres and `.env` are only needed if you want the optional warehouse pipeline (`make bootstrap`, `make load`, `make metrics`, etc.).
+### 3) Build analytics metrics layer (SQL)
+- `sql/metrics/funnels.sql`
+- `sql/metrics/retention.sql`
+- `sql/metrics/guardrails.sql`
+- `sql/metrics/experiment_readout_tables.sql`
 
-## Standard commands
-- `make setup` - create `.venv` and install dependencies
-- `make test-db` - validate PostgreSQL connection and ensure target DB exists
-- `make schema` - apply SQL DDL
-- `make generate` - generate synthetic raw data CSVs
-- `make load` - load CSVs into PostgreSQL with upserts
-- `make qa` - run post-load data quality checks
-- `make metrics` - build SQL metrics views
-- `make analyze` - produce A/B tables and figures
-- `make report` - generate readout markdown files
-- `make pipeline` - generate -> load -> qa -> metrics -> analyze -> report
-- `make all` - alias for `make pipeline`
-- `make bootstrap` - setup + test-db + full pipeline
-- `make s3-upload` - upload `data/raw` files to S3
-- `make s3-download` - download raw files from S3 into `data/raw`
-- `make dashboard` - launch Streamlit dashboard
-- `make dashboard-data` - build dashboard tables/readout from raw CSVs (no Postgres)
-- `make final-deliverable` - one-command final app launch (setup + generate + dashboard-data + dashboard)
+### 4) Run experiment analysis (Python)
+- module: `src/analysis/run_analysis.py`
+- includes effect estimation, CIs, CUPED, power/MDE, multiple-metric correction, segment cuts
+
+### 5) Produce project readout + dashboard assets
+- report markdown in `reports/`
+- dashboard tables in `reports/tables/`
+- Streamlit app in `dashboard/app.py`
+
+## Commands
+### Core deliverable
+- `make final-deliverable`: fastest path to the finished project walkthrough dashboard
+
+### Full warehouse + analysis pipeline
+- `make setup`: create `.venv`, install deps
+- `make test-db`: test/create target Postgres DB
+- `make schema`: apply DDL
+- `make generate`: create synthetic raw CSVs
+- `make load`: load CSVs into Postgres
+- `make qa`: data quality checks
+- `make metrics`: create SQL metrics layer
+- `make analyze`: run statistical analysis
+- `make report`: build markdown outputs
+- `make pipeline`: `generate -> load -> qa -> metrics -> analyze -> report`
+- `make bootstrap`: `setup -> test-db -> pipeline`
+
+### Optional utilities
+- `make s3-upload`: upload raw data to S3
+- `make s3-download`: pull raw data from S3
+- `make dashboard-data`: rebuild dashboard tables/readout only
+- `make dashboard`: run Streamlit app
+
+## Tech Stack and Skillsets Demonstrated
+### Languages
+- Python 3.10+
+- SQL (PostgreSQL dialect)
+
+### Core libraries and frameworks
+- Data/compute: `pandas`, `numpy`, `scipy`
+- Statistical analysis: `statsmodels`, `scikit-learn`
+- Database + loading: `sqlalchemy`, `psycopg2-binary`
+- Visualization/reporting: `matplotlib`, `streamlit`
+- Config/testing: `python-dotenv`, `pytest`
+- Optional cloud sync: `boto3`
+
+### Engineering skills shown in this repo
+- analytics SQL modeling (funnel, retention, guardrails)
+- experiment design and interpretation (primary metric vs guardrails)
+- robust ETL/load patterns (staging + upsert, idempotency)
+- statistical workflow automation (CUPED, MDE/power, corrections)
+- reproducible project structure (repo-first, Make targets, tests)
+- stakeholder communication artifacts (readout + interactive dashboard)
 
 ## Outputs
-Generated artifacts:
-- Tables: `reports/tables/*.csv`
-- Figures: `reports/figures/*.png`
-- Readout: `reports/experiment_readout.md`
-- Executive summary: `reports/executive_summary.md`
+- final dashboard: `dashboard/app.py` (served by Streamlit)
+- experiment readout: `reports/experiment_readout.md`
+- dashboard walkthrough notes: `reports/dashboard_walkthrough.md`
+- tables: `reports/tables/*.csv`
+- figures: `reports/figures/*.png`
 
-## Streamlit dashboard (Primary Deliverable)
-Launch:
-```bash
-make final-deliverable
-```
+## Postgres Setup Notes
+If you run warehouse commands, set `.env` using your local Postgres user.
 
-The app walks through:
-- project context and hypothesis
-- simulation/data quality checks
-- core experiment results (funnel, trend, segment views)
-- experiment readout summary
-- simulation spec and pre-registration
+If you get:
+`FATAL: role "postgres" does not exist`
 
-## Optional S3 data-lake sync
-Set these in `.env` if using S3:
-- `S3_BUCKET`
-- `S3_PREFIX` (default `mindlift/raw`)
-- `AWS_REGION` (optional)
-
-Upload raw files:
-```bash
-make s3-upload
-```
-
-Download raw files:
-```bash
-make s3-download
-```
-
-## PostgreSQL local setup options
-- Postgres.app
-- Docker example:
-```bash
-docker run --name mindlift-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=mindlift -p 5432:5432 -d postgres:16
-```
-
-## Troubleshooting
-If you see `FATAL: role "postgres" does not exist`, your local Postgres user is not `postgres`.
-
-Fix `.env` by setting:
+set:
 ```env
 PGUSER=<your_local_postgres_user>
-PGPASSWORD=<your_password_if_any>
+PGPASSWORD=<password_if_required>
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=mindlift
 ```
 
-On macOS Postgres.app/Homebrew, `PGUSER` is often your mac username.
-
 ## Documentation
-- Simulation assumptions: `docs/simulation_spec.md`
-- Pre-registration plan: `docs/preregistration.md`
+- simulation assumptions and realism knobs: `docs/simulation_spec.md`
+
