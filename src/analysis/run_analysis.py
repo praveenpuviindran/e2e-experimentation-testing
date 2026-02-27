@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import create_engine, text
 
+from src.analysis.cuped import apply_cuped
 from src.analysis.power import mde_binary_for_sample_size, required_n_per_group_binary
 from src.analysis.stats_utils import estimate_ab
 from src.utils.config import get_database_url
@@ -130,6 +131,55 @@ def _plot_effects(results: pd.DataFrame, output_path: Path) -> None:
     plt.close(fig)
 
 
+def _run_cuped_analysis(df: pd.DataFrame, raw_results: pd.DataFrame) -> pd.DataFrame:
+    cuped_metrics = ["activated_within_7d", "retained_d7", "retained_d30"]
+    rows = []
+
+    for metric in cuped_metrics:
+        subset = df[["assigned_variant", "baseline_score", metric]].dropna().copy()
+        cuped = apply_cuped(
+            outcome=subset[metric].to_numpy(),
+            covariate=subset["baseline_score"].to_numpy(),
+        )
+        subset["cuped_outcome"] = cuped.adjusted_outcome
+
+        control_vals = subset.loc[subset["assigned_variant"] == "control", "cuped_outcome"].to_numpy()
+        treatment_vals = subset.loc[subset["assigned_variant"] == "treatment", "cuped_outcome"].to_numpy()
+        cuped_estimate = estimate_ab(treatment=treatment_vals, control=control_vals, n_bootstrap=2000, seed=42)
+
+        raw_effect = float(raw_results.loc[raw_results["metric"] == metric, "effect_abs"].iloc[0])
+
+        rows.append(
+            {
+                "metric": metric,
+                "theta": cuped.theta,
+                "raw_variance": cuped.raw_variance,
+                "cuped_variance": cuped.adjusted_variance,
+                "variance_reduction_pct": cuped.variance_reduction_pct,
+                "raw_effect_abs": raw_effect,
+                "cuped_effect_abs": cuped_estimate.effect_abs,
+                "cuped_ci_low": cuped_estimate.ci_low,
+                "cuped_ci_high": cuped_estimate.ci_high,
+                "cuped_p_value": cuped_estimate.p_value,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def _plot_cuped_variance(cuped_df: pd.DataFrame, output_path: Path) -> None:
+    plot_df = cuped_df.sort_values("variance_reduction_pct", ascending=False)
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.bar(plot_df["metric"], plot_df["variance_reduction_pct"])
+    ax.set_ylabel("Variance reduction (%)")
+    ax.set_title("CUPED Variance Reduction by Metric")
+    ax.tick_params(axis="x", rotation=15)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160)
+    plt.close(fig)
+
+
 def main() -> None:
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
@@ -186,6 +236,15 @@ def main() -> None:
     _plot_effects(results, effects_path)
     logger.info("Wrote %s", rates_path)
     logger.info("Wrote %s", effects_path)
+
+    cuped_df = _run_cuped_analysis(df, results)
+    cuped_path = TABLES_DIR / "cuped_results.csv"
+    cuped_df.to_csv(cuped_path, index=False)
+    logger.info("Wrote %s", cuped_path)
+
+    cuped_fig_path = FIGURES_DIR / "cuped_variance_reduction.png"
+    _plot_cuped_variance(cuped_df, cuped_fig_path)
+    logger.info("Wrote %s", cuped_fig_path)
 
 
 if __name__ == "__main__":
