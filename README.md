@@ -1,5 +1,7 @@
 # MindLift Experiment Workflow Project
 
+Live Streamlit dashboard: https://e2e-experimentation-testing.streamlit.app/
+
 This repository is my end-to-end product analytics and experimentation workflow.
 I built it to demonstrate how I can move from raw event data to a clear experiment decision with reproducible engineering.
 
@@ -159,4 +161,3 @@ PGDATABASE=mindlift
 
 ## Documentation
 - simulation assumptions and realism knobs: `docs/simulation_spec.md`
-

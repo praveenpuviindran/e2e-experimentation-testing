@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,7 @@ st.set_page_config(page_title="MindLift Experiment Workflow", page_icon="📊", 
 ROOT = Path(".")
 TABLES_DIR = ROOT / "reports/tables"
 DOCS_DIR = ROOT / "docs"
+RAW_DIR = ROOT / "data/raw"
 
 
 @st.cache_data(show_spinner=False)
@@ -44,6 +46,43 @@ def _required_files_exist() -> tuple[bool, list[str]]:
     return len(missing) == 0, missing
 
 
+def _required_raw_files_exist() -> tuple[bool, list[str]]:
+    required = [
+        RAW_DIR / "dim_users.csv",
+        RAW_DIR / "fact_events.csv",
+        RAW_DIR / "fact_matches.csv",
+        RAW_DIR / "fact_cancellations.csv",
+        RAW_DIR / "fact_support_tickets.csv",
+    ]
+    missing = [str(p) for p in required if not p.exists()]
+    return len(missing) == 0, missing
+
+
+def _generate_raw_data_if_needed() -> None:
+    raw_ok, _ = _required_raw_files_exist()
+    if raw_ok:
+        return
+
+    from src.data_gen.generate_data import SimulationConfig, simulate_data
+
+    n_users = int(os.getenv("STREAMLIT_AUTO_N_USERS", "75000"))
+    seed = int(os.getenv("STREAMLIT_AUTO_SEED", "42"))
+    cfg = SimulationConfig(n_users=n_users, seed=seed, output_dir=RAW_DIR)
+    frames = simulate_data(cfg)
+    cfg.output_dir.mkdir(parents=True, exist_ok=True)
+    for table_name, df in frames.items():
+        df.to_csv(cfg.output_dir / f"{table_name}.csv", index=False)
+
+
+def _build_dashboard_artifacts() -> None:
+    from src.analysis.build_dashboard_bundle import main as build_dashboard_bundle_main
+
+    _generate_raw_data_if_needed()
+    build_dashboard_bundle_main()
+    _read_csv.clear()
+    _read_text.clear()
+
+
 ok, missing_files = _required_files_exist()
 
 st.title("MindLift Experiment Workflow Project")
@@ -68,9 +107,19 @@ Why onboarding is the focus:
 )
 
 if not ok:
-    st.error("Dashboard artifacts are missing.")
-    st.markdown("Run the full build command:")
-    st.code("make final-deliverable", language="bash")
+    with st.spinner("Preparing dashboard artifacts for first load..."):
+        try:
+            _build_dashboard_artifacts()
+            ok, missing_files = _required_files_exist()
+        except Exception as exc:
+            st.error("Dashboard artifacts are missing and automatic build failed.")
+            st.markdown("Run the full build command locally and redeploy:")
+            st.code("make final-deliverable", language="bash")
+            st.exception(exc)
+            st.stop()
+
+if not ok:
+    st.error("Dashboard artifacts are still missing after automatic build.")
     st.markdown("Missing files:")
     for item in missing_files:
         st.write(f"- {item}")
