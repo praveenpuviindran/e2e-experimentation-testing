@@ -7,6 +7,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 from src.analysis.cuped import apply_cuped
+from src.analysis.multiple_testing import benjamini_hochberg
 from src.analysis.power import mde_binary_for_sample_size, required_n_per_group_binary
 from src.analysis.stats_utils import estimate_ab
 from src.utils.config import get_database_url
@@ -26,6 +27,7 @@ METRICS = [
     "time_to_first_match_hours",
     "support_tickets_30d",
 ]
+PRE_REGISTERED_SEGMENTS = ["acquisition_channel", "device", "age_bucket"]
 
 
 def _load_experiment_data() -> pd.DataFrame:
@@ -36,6 +38,8 @@ def _load_experiment_data() -> pd.DataFrame:
             user_id,
             assigned_variant,
             acquisition_channel,
+            device,
+            age_bucket,
             baseline_score,
             activated_within_7d,
             retained_d7,
@@ -131,6 +135,72 @@ def _plot_effects(results: pd.DataFrame, output_path: Path) -> None:
     plt.close(fig)
 
 
+def _apply_metric_fdr(results: pd.DataFrame) -> pd.DataFrame:
+    df = results.copy()
+    primary_mask = df["metric"] == "activated_within_7d"
+    secondary_mask = ~primary_mask
+
+    adjusted = benjamini_hochberg(df.loc[secondary_mask, "p_value"].to_numpy())
+    df.loc[secondary_mask, "p_value_fdr"] = adjusted
+    df.loc[primary_mask, "p_value_fdr"] = df.loc[primary_mask, "p_value"]
+    df["significant_fdr_05"] = df["p_value_fdr"] <= 0.05
+    return df
+
+
+def _run_segment_analysis(df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    metric = "activated_within_7d"
+
+    for segment_col in PRE_REGISTERED_SEGMENTS:
+        for segment_value, seg_df in df.groupby(segment_col):
+            control_vals = seg_df.loc[seg_df["assigned_variant"] == "control", metric].dropna().to_numpy()
+            treatment_vals = seg_df.loc[seg_df["assigned_variant"] == "treatment", metric].dropna().to_numpy()
+
+            if len(control_vals) < 200 or len(treatment_vals) < 200:
+                continue
+
+            est = estimate_ab(treatment=treatment_vals, control=control_vals, n_bootstrap=1500, seed=42)
+            rows.append(
+                {
+                    "segment_dimension": segment_col,
+                    "segment_value": str(segment_value),
+                    "metric": metric,
+                    "n_control": est.n_control,
+                    "n_treatment": est.n_treatment,
+                    "control_mean": est.control_mean,
+                    "treatment_mean": est.treatment_mean,
+                    "effect_abs": est.effect_abs,
+                    "ci_low": est.ci_low,
+                    "ci_high": est.ci_high,
+                    "p_value": est.p_value,
+                }
+            )
+
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "segment_dimension",
+                "segment_value",
+                "metric",
+                "n_control",
+                "n_treatment",
+                "control_mean",
+                "treatment_mean",
+                "effect_abs",
+                "ci_low",
+                "ci_high",
+                "p_value",
+                "p_value_fdr",
+                "significant_fdr_05",
+            ]
+        )
+
+    out = pd.DataFrame(rows)
+    out["p_value_fdr"] = benjamini_hochberg(out["p_value"].to_numpy())
+    out["significant_fdr_05"] = out["p_value_fdr"] <= 0.05
+    return out.sort_values(["segment_dimension", "segment_value"]).reset_index(drop=True)
+
+
 def _run_cuped_analysis(df: pd.DataFrame, raw_results: pd.DataFrame) -> pd.DataFrame:
     cuped_metrics = ["activated_within_7d", "retained_d7", "retained_d30"]
     rows = []
@@ -189,6 +259,7 @@ def main() -> None:
     logger.info("Loaded %s rows", len(df))
 
     results = _estimate_metrics(df)
+    results = _apply_metric_fdr(results)
 
     results_path = TABLES_DIR / "ab_results_v1.csv"
     results.to_csv(results_path, index=False)
@@ -245,6 +316,11 @@ def main() -> None:
     cuped_fig_path = FIGURES_DIR / "cuped_variance_reduction.png"
     _plot_cuped_variance(cuped_df, cuped_fig_path)
     logger.info("Wrote %s", cuped_fig_path)
+
+    segment_df = _run_segment_analysis(df)
+    segment_path = TABLES_DIR / "segment_analysis.csv"
+    segment_df.to_csv(segment_path, index=False)
+    logger.info("Wrote %s", segment_path)
 
 
 if __name__ == "__main__":
