@@ -86,12 +86,20 @@ Launch:
 make dashboard
 ```
 
-The app reads from `reports/tables` and shows:
+Default mode reads from `reports/tables` and shows:
 - Primary metric lift and p-value
 - MDE snapshot
 - Metric-level effects + FDR
 - CUPED variance reduction
 - Pre-registered segment analysis
+
+If Postgres pipeline is unavailable, run a fast local fallback:
+```bash
+make tableau-export
+make dashboard
+```
+
+Fallback mode reads from `data/processed/tableau/mindlift_tableau_user_level.csv` and still renders experiment metrics/charts (without inferential stats like CI/p-values).
 
 ## Tableau Online dashboard
 Generate Tableau-ready files:

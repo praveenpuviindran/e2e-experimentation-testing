@@ -49,7 +49,10 @@ def _copy_and_upsert(raw_conn, csv_path: Path, table_name: str, pk_columns: list
         conflict_clause = "DO NOTHING"
 
     with raw_conn.cursor() as cursor:
-        cursor.execute(f"CREATE TEMP TABLE {staging_name} (LIKE {table_name}) ON COMMIT DROP;")
+        # Preserve source-table defaults (for example dim_users.created_at) in staging.
+        cursor.execute(
+            f"CREATE TEMP TABLE {staging_name} (LIKE {table_name} INCLUDING DEFAULTS) ON COMMIT DROP;"
+        )
         with csv_path.open("r", encoding="utf-8") as f:
             cursor.copy_expert(
                 f"COPY {staging_name} ({columns_sql}) FROM STDIN WITH CSV HEADER",
