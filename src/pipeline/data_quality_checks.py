@@ -44,7 +44,31 @@ def main() -> None:
                 f"Data quality check failed: treatment allocation imbalance ({treatment_share:.4f})"
             )
 
-        activation_rate = _scalar(conn, "SELECT AVG(activated_within_7d::DOUBLE PRECISION) FROM vw_activation_user_level")
+        activation_rate = _scalar(
+            conn,
+            """
+            WITH event_firsts AS (
+                SELECT
+                    user_id,
+                    MIN(CASE WHEN event_name = 'onboarding_completed' THEN event_ts END) AS onboarding_completed_ts,
+                    MIN(CASE WHEN event_name = 'session_booked' THEN event_ts END) AS first_booking_ts
+                FROM fact_events
+                GROUP BY user_id
+            )
+            SELECT AVG(
+                CASE
+                    WHEN ef.onboarding_completed_ts IS NOT NULL
+                     AND ef.first_booking_ts IS NOT NULL
+                     AND ef.onboarding_completed_ts <= u.signup_ts + INTERVAL '7 day'
+                     AND ef.first_booking_ts <= u.signup_ts + INTERVAL '7 day'
+                    THEN 1.0 ELSE 0.0
+                END
+            )
+            FROM dim_users u
+            LEFT JOIN event_firsts ef
+                ON u.user_id = ef.user_id
+            """,
+        )
         if not (0.05 <= activation_rate <= 0.80):
             raise SystemExit(f"Data quality check failed: activation rate out of expected bounds ({activation_rate:.4f})")
 

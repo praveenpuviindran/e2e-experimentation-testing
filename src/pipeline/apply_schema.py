@@ -3,6 +3,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.pipeline.ensure_database import ensure_target_database_exists
 from src.utils.config import get_database_url
 from src.utils.logging import get_logger
 
@@ -14,6 +15,8 @@ SCHEMA_SQL_PATH = Path("sql/schema/schema.sql")
 def main() -> None:
     if not SCHEMA_SQL_PATH.exists():
         raise SystemExit(f"Schema file missing: {SCHEMA_SQL_PATH}")
+
+    ensure_target_database_exists()
 
     sql_text = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
     engine = create_engine(get_database_url())

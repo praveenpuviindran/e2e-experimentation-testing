@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap
+.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap s3-upload s3-download dashboard
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -35,4 +35,13 @@ pipeline: generate load qa metrics analyze report
 
 all: pipeline
 
-bootstrap: setup pipeline
+bootstrap: setup test-db pipeline
+
+s3-upload:
+	. .venv/bin/activate && $(PYTHON) -m src.pipeline.s3_sync upload
+
+s3-download:
+	. .venv/bin/activate && $(PYTHON) -m src.pipeline.s3_sync download
+
+dashboard:
+	. .venv/bin/activate && streamlit run dashboard/app.py

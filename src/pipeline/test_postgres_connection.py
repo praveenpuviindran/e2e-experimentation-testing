@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.pipeline.ensure_database import ensure_target_database_exists
 from src.utils.config import get_database_url
 from src.utils.logging import get_logger
 
@@ -14,6 +15,7 @@ def main() -> None:
     logger.info("Database URL host info loaded from environment")
 
     try:
+        ensure_target_database_exists()
         engine = create_engine(db_url)
         with engine.connect() as conn:
             result = conn.execute(text("SELECT version() AS version, current_database() AS db_name"))

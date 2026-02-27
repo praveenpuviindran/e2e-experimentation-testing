@@ -45,29 +45,32 @@ experimentation-platform/
 1. Configure environment:
 ```bash
 cp .env.example .env
-# edit .env with your local Postgres credentials
 ```
+Then edit `.env` with your local Postgres credentials only if defaults do not work.
 
 2. One-command run (fresh clone path):
 ```bash
 make bootstrap
 ```
 
-This command performs setup + data generation + load + metrics + analysis + report.
+`make bootstrap` runs setup + connection test + full pipeline.
 
 ## Standard commands
 - `make setup` - create `.venv` and install dependencies
-- `make test-db` - validate PostgreSQL connection
+- `make test-db` - validate PostgreSQL connection and ensure target DB exists
 - `make schema` - apply SQL DDL
 - `make generate` - generate synthetic raw data CSVs
 - `make load` - load CSVs into PostgreSQL with upserts
+- `make qa` - run post-load data quality checks
 - `make metrics` - build SQL metrics views
 - `make analyze` - produce A/B tables and figures
 - `make report` - generate readout markdown files
-- `make qa` - run post-load data quality checks
 - `make pipeline` - generate -> load -> qa -> metrics -> analyze -> report
 - `make all` - alias for `make pipeline`
-- `make bootstrap` - setup + full pipeline
+- `make bootstrap` - setup + test-db + full pipeline
+- `make s3-upload` - upload `data/raw` files to S3
+- `make s3-download` - download raw files from S3 into `data/raw`
+- `make dashboard` - launch Streamlit dashboard
 
 ## Outputs
 Generated artifacts:
@@ -76,10 +79,34 @@ Generated artifacts:
 - Readout: `reports/experiment_readout.md`
 - Executive summary: `reports/executive_summary.md`
 
-## Documentation
-- Simulation assumptions: `docs/simulation_spec.md`
-- Pre-registration plan: `docs/preregistration.md`
-- Resume bullets: `docs/resume_bullets.md`
+## Streamlit dashboard
+Launch:
+```bash
+make dashboard
+```
+
+The app reads from `reports/tables` and shows:
+- Primary metric lift and p-value
+- MDE snapshot
+- Metric-level effects + FDR
+- CUPED variance reduction
+- Pre-registered segment analysis
+
+## Optional S3 data-lake sync
+Set these in `.env` if using S3:
+- `S3_BUCKET`
+- `S3_PREFIX` (default `mindlift/raw`)
+- `AWS_REGION` (optional)
+
+Upload raw files:
+```bash
+make s3-upload
+```
+
+Download raw files:
+```bash
+make s3-download
+```
 
 ## PostgreSQL local setup options
 - Postgres.app
@@ -88,5 +115,18 @@ Generated artifacts:
 docker run --name mindlift-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=mindlift -p 5432:5432 -d postgres:16
 ```
 
-## Optional AWS extension
-You can extend the raw data step by syncing `data/raw/` to S3 (e.g., `s3://<bucket>/mindlift/raw/`) and pulling it before `make load`.
+## Troubleshooting
+If you see `FATAL: role "postgres" does not exist`, your local Postgres user is not `postgres`.
+
+Fix `.env` by setting:
+```env
+PGUSER=<your_local_postgres_user>
+PGPASSWORD=<your_password_if_any>
+```
+
+On macOS Postgres.app/Homebrew, `PGUSER` is often your mac username.
+
+## Documentation
+- Simulation assumptions: `docs/simulation_spec.md`
+- Pre-registration plan: `docs/preregistration.md`
+- Resume bullets: `docs/resume_bullets.md`
