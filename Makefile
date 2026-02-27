@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap s3-upload s3-download dashboard
+.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap s3-upload s3-download dashboard tableau-export
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -45,3 +45,6 @@ s3-download:
 
 dashboard:
 	. .venv/bin/activate && streamlit run dashboard/app.py
+
+tableau-export:
+	. .venv/bin/activate && $(PYTHON) -m src.analysis.export_tableau_data

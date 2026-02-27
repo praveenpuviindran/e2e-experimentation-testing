@@ -71,6 +71,7 @@ make bootstrap
 - `make s3-upload` - upload `data/raw` files to S3
 - `make s3-download` - download raw files from S3 into `data/raw`
 - `make dashboard` - launch Streamlit dashboard
+- `make tableau-export` - create Tableau Online upload files from `data/raw`
 
 ## Outputs
 Generated artifacts:
@@ -91,6 +92,18 @@ The app reads from `reports/tables` and shows:
 - Metric-level effects + FDR
 - CUPED variance reduction
 - Pre-registered segment analysis
+
+## Tableau Online dashboard
+Generate Tableau-ready files:
+```bash
+make tableau-export
+```
+
+Upload this file in Tableau Online (`Connect to Data -> Upload from file`):
+- `data/processed/tableau/mindlift_tableau_user_level.csv`
+
+Full click-by-click build instructions:
+- `docs/tableau_online_build_guide.md`
 
 ## Optional S3 data-lake sync
 Set these in `.env` if using S3:
