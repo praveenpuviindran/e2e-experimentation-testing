@@ -55,6 +55,11 @@ This is my full workflow project for experimentation analytics.
 I built this project to answer a practical product question:
 **If onboarding is redesigned, do more users reach meaningful activation without harming user experience?**
 
+**Important context:** This project uses **synthetic data** (not real user or patient data).
+I made this choice intentionally so I can share a fully reproducible end-to-end experimentation workflow
+without privacy risk or restricted production logs. The synthetic dataset is designed to behave like a real
+product event stream (seasonality, duplicates, missingness, noncompliance, and segment differences).
+
 Why onboarding?
 - It is the first critical moment in a subscription app.
 - Small onboarding improvements can compound into retention and revenue gains.
@@ -148,10 +153,21 @@ The primary number to read first is **Activation Lift**.
 )
 
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Activation Lift", f"{activation_lift_pp:.2f} pp")
-k2.metric("Control Activation", f"{100*control['activation_rate_7d']:.2f}%")
-k3.metric("Treatment Activation", f"{100*treatment['activation_rate_7d']:.2f}%")
-k4.metric("Total Users", f"{int(summary['users'].sum()):,}")
+k1.markdown("**Activation Lift**<sup>?</sup>", unsafe_allow_html=True)
+k1.caption("Difference between treatment activation and control activation (percentage points).")
+k1.metric(" ", f"{activation_lift_pp:.2f} pp")
+
+k2.markdown("**Control Activation**<sup>?</sup>", unsafe_allow_html=True)
+k2.caption("Activation rate for users who saw the original onboarding.")
+k2.metric(" ", f"{100*control['activation_rate_7d']:.2f}%")
+
+k3.markdown("**Treatment Activation**<sup>?</sup>", unsafe_allow_html=True)
+k3.caption("Activation rate for users who saw the redesigned onboarding.")
+k3.metric(" ", f"{100*treatment['activation_rate_7d']:.2f}%")
+
+k4.markdown("**Total Users**<sup>?</sup>", unsafe_allow_html=True)
+k4.caption("Total synthetic users included in the experiment dataset.")
+k4.metric(" ", f"{int(summary['users'].sum()):,}")
 
 st.subheader("Detailed KPI Table")
 st.caption("Use this table to inspect primary, secondary, and guardrail metrics side-by-side.")
@@ -270,6 +286,12 @@ st.markdown("**Action Plan**")
 st.write(row["action_plan"])
 
 st.subheader("Decision Diagnostics")
+st.markdown(
+    """
+Diagnostic metrics below explain why the recommendation was selected.
+Each row is a simple, business-readable check against rollout safety.
+"""
+)
 diag = pd.DataFrame(
     [
         {"Metric": "Activation lift (percentage points)", "Value": row["activation_lift_pp"]},

@@ -386,6 +386,7 @@ def _write_readout(summary: pd.DataFrame) -> None:
     text = f"""# MindLift Onboarding Experiment: Executive Readout
 
 ## Executive Summary
+This readout is based on synthetic product data generated to emulate a realistic event analytics environment.
 The redesigned onboarding experience increased early activation.
 
 - Control 7-day activation: {100*control['activation_rate_7d']:.2f}%
@@ -407,6 +408,9 @@ def _write_walkthrough() -> None:
     text = """# Dashboard Walkthrough
 
 This dashboard is the final workflow readout for my MindLift experimentation project.
+
+## Data source note
+All results are based on synthetic event data that I generated to mimic real product behavior while avoiding use of private production logs.
 
 ## What it covers
 1. Why onboarding was chosen as the experiment focus
