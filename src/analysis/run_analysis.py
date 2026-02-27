@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import create_engine, text
 
+from src.analysis.power import mde_binary_for_sample_size, required_n_per_group_binary
 from src.analysis.stats_utils import estimate_ab
 from src.utils.config import get_database_url
 from src.utils.logging import get_logger
@@ -142,6 +143,42 @@ def main() -> None:
     results_path = TABLES_DIR / "ab_results_v1.csv"
     results.to_csv(results_path, index=False)
     logger.info("Wrote %s", results_path)
+
+    primary_row = results.loc[results["metric"] == "activated_within_7d"].iloc[0]
+    baseline_rate = float(primary_row["control_mean"])
+    n_control = int(primary_row["n_control"])
+    n_treatment = int(primary_row["n_treatment"])
+    observed_mde = mde_binary_for_sample_size(
+        baseline_rate=baseline_rate,
+        n_control=n_control,
+        n_treatment=n_treatment,
+        alpha=0.05,
+        power=0.80,
+    )
+    required_n_for_1pp = required_n_per_group_binary(
+        baseline_rate=baseline_rate,
+        mde_abs=0.01,
+        alpha=0.05,
+        power=0.80,
+    )
+
+    power_df = pd.DataFrame(
+        [
+            {
+                "metric": "activated_within_7d",
+                "alpha": 0.05,
+                "power": 0.80,
+                "baseline_rate_control": baseline_rate,
+                "n_control": n_control,
+                "n_treatment": n_treatment,
+                "observed_mde_abs": observed_mde,
+                "required_n_per_group_for_1pp_lift": required_n_for_1pp,
+            }
+        ]
+    )
+    power_path = TABLES_DIR / "power_mde.csv"
+    power_df.to_csv(power_path, index=False)
+    logger.info("Wrote %s", power_path)
 
     rates_path = FIGURES_DIR / "metric_rates_v1.png"
     effects_path = FIGURES_DIR / "effect_estimates_v1.png"
