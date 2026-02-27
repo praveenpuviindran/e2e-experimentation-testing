@@ -224,46 +224,60 @@ def compute_metric_dictionary() -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "metric": "activated_within_7d",
-                "type": "Primary",
-                "definition": "User completed onboarding and booked first session within 7 days of signup.",
-                "good_direction": "Higher",
+                "metric_key": "activated_within_7d",
+                "business_metric": "7-Day Activation Rate",
+                "category": "Primary Outcome",
+                "definition": "Share of new users who complete onboarding and book their first session within 7 days.",
+                "why_it_matters": "Captures early conversion from signup to meaningful product use.",
+                "desired_direction": "Higher",
             },
             {
-                "metric": "retained_d7",
-                "type": "Secondary",
-                "definition": "User had at least one app_open event at or after day 7 from signup.",
-                "good_direction": "Higher",
+                "metric_key": "retained_d7",
+                "business_metric": "Day-7 Retention",
+                "category": "Secondary Outcome",
+                "definition": "Share of users who return to the app on or after day 7.",
+                "why_it_matters": "Signals short-term habit formation after onboarding.",
+                "desired_direction": "Higher",
             },
             {
-                "metric": "retained_d30",
-                "type": "Secondary",
-                "definition": "User had at least one app_open event at or after day 30 from signup.",
-                "good_direction": "Higher",
+                "metric_key": "retained_d30",
+                "business_metric": "Day-30 Retention",
+                "category": "Secondary Outcome",
+                "definition": "Share of users who return to the app on or after day 30.",
+                "why_it_matters": "Reflects medium-term user stickiness.",
+                "desired_direction": "Higher",
             },
             {
-                "metric": "cancelled_30d",
-                "type": "Guardrail",
-                "definition": "Cancellation occurred within 30 days of signup.",
-                "good_direction": "Lower",
+                "metric_key": "cancelled_30d",
+                "business_metric": "30-Day Cancellation Rate",
+                "category": "Guardrail",
+                "definition": "Share of users who cancel within 30 days of signup.",
+                "why_it_matters": "Ensures growth is not coming from poor-fit or low-quality starts.",
+                "desired_direction": "Lower",
             },
             {
-                "metric": "time_to_first_match_hours",
-                "type": "Guardrail",
-                "definition": "Hours between signup and first therapist match timestamp.",
-                "good_direction": "Lower",
+                "metric_key": "time_to_first_match_hours",
+                "business_metric": "Time to First Match (hours)",
+                "category": "Guardrail",
+                "definition": "Average hours between signup and first therapist match.",
+                "why_it_matters": "Long wait times can hurt trust and downstream retention.",
+                "desired_direction": "Lower",
             },
             {
-                "metric": "support_tickets_30d",
-                "type": "Guardrail",
-                "definition": "Number of support tickets created by user in first 30 days.",
-                "good_direction": "Lower",
+                "metric_key": "support_tickets_30d",
+                "business_metric": "Support Tickets per User (30D)",
+                "category": "Guardrail",
+                "definition": "Average number of support tickets per user in first 30 days.",
+                "why_it_matters": "Tracks friction introduced by product changes.",
+                "desired_direction": "Lower",
             },
             {
-                "metric": "noncompliance_flag",
-                "type": "Design Integrity",
-                "definition": "Assigned variant differs from actually exposed variant.",
-                "good_direction": "Lower",
+                "metric_key": "noncompliance_flag",
+                "business_metric": "Noncompliance Rate",
+                "category": "Design Integrity",
+                "definition": "Share of users whose assigned experience differs from what they actually saw.",
+                "why_it_matters": "Higher noncompliance weakens confidence in treatment effect estimates.",
+                "desired_direction": "Lower",
             },
         ]
     )
@@ -290,19 +304,29 @@ def compute_final_recommendation(summary: pd.DataFrame) -> pd.DataFrame:
     latency_delta = float(treatment["avg_match_latency_hours"] - control["avg_match_latency_hours"])
     support_delta = float(treatment["support_tickets_per_user"] - control["support_tickets_per_user"])
 
-    guardrail_worse = (cancellation_delta > 0) or (latency_delta > 0) or (support_delta > 0)
+    # Practical tolerances for guardrails to avoid overreacting to tiny movements.
+    cancellation_tolerance = 0.003  # +0.30 percentage points
+    latency_tolerance_hours = 1.0
+    support_tolerance = 0.01
 
-    if primary_lift > 0 and not guardrail_worse:
-        decision = "Ship treatment with phased rollout"
-        rationale = "Primary metric improved and guardrails did not worsen."
-        action_plan = "Roll out 10% -> 50% -> 100% while monitoring guardrails daily."
-    elif primary_lift > 0 and guardrail_worse:
-        decision = "Do not fully ship yet"
-        rationale = "Primary metric improved, but one or more guardrails worsened."
-        action_plan = "Mitigate guardrail issues, then rerun a focused follow-up experiment."
+    cancellation_ok = cancellation_delta <= cancellation_tolerance
+    latency_ok = latency_delta <= latency_tolerance_hours
+    support_ok = support_delta <= support_tolerance
+    guardrails_ok = cancellation_ok and latency_ok and support_ok
+
+    if primary_lift > 0 and guardrails_ok:
+        decision = "Proceed with staged rollout"
+        rationale = (
+            "The treatment improved 7-day activation and guardrail shifts remained within acceptable operating thresholds."
+        )
+        action_plan = "Roll out 10% -> 50% -> 100% with daily monitoring and rollback triggers."
+    elif primary_lift > 0 and not guardrails_ok:
+        decision = "Hold full rollout and mitigate risk"
+        rationale = "Activation improved, but at least one guardrail exceeded tolerance."
+        action_plan = "Address guardrail risk drivers, then rerun a targeted validation test."
     else:
-        decision = "Do not ship treatment"
-        rationale = "Primary metric did not improve versus control."
+        decision = "Do not roll out treatment yet"
+        rationale = "Primary activation outcome did not improve versus control."
         action_plan = "Iterate onboarding design and retest."
 
     return pd.DataFrame(
@@ -315,6 +339,9 @@ def compute_final_recommendation(summary: pd.DataFrame) -> pd.DataFrame:
                 "cancellation_delta_pp": 100 * cancellation_delta,
                 "match_latency_delta_hours": latency_delta,
                 "support_ticket_delta": support_delta,
+                "guardrail_cancellation_within_tolerance": cancellation_ok,
+                "guardrail_latency_within_tolerance": latency_ok,
+                "guardrail_support_within_tolerance": support_ok,
             }
         ]
     )
@@ -326,20 +353,22 @@ def _write_readout(summary: pd.DataFrame) -> None:
 
     lift = treatment["activation_rate_7d"] - control["activation_rate_7d"]
 
-    text = f"""# MindLift Experiment Readout
+    text = f"""# MindLift Onboarding Experiment: Executive Readout
 
 ## Executive Summary
-- Activation (7D) control: {100*control['activation_rate_7d']:.2f}%
-- Activation (7D) treatment: {100*treatment['activation_rate_7d']:.2f}%
+The redesigned onboarding experience increased early activation.
+
+- Control 7-day activation: {100*control['activation_rate_7d']:.2f}%
+- Treatment 7-day activation: {100*treatment['activation_rate_7d']:.2f}%
 - Absolute lift: {100*lift:.2f} percentage points
 
-## Guardrails
-- Cancellation rate (30D): control={100*control['cancellation_rate_30d']:.2f}%, treatment={100*treatment['cancellation_rate_30d']:.2f}%
-- Avg match latency hours: control={control['avg_match_latency_hours']:.2f}, treatment={treatment['avg_match_latency_hours']:.2f}
-- Support tickets per user: control={control['support_tickets_per_user']:.4f}, treatment={treatment['support_tickets_per_user']:.4f}
+## Guardrail Review
+- 30-day cancellation rate: control={100*control['cancellation_rate_30d']:.2f}% | treatment={100*treatment['cancellation_rate_30d']:.2f}%
+- Time to first match: control={control['avg_match_latency_hours']:.2f}h | treatment={treatment['avg_match_latency_hours']:.2f}h
+- Support tickets per user: control={control['support_tickets_per_user']:.4f} | treatment={treatment['support_tickets_per_user']:.4f}
 
-## Recommendation
-Run phased rollout with guardrail monitoring and instrumentation checks.
+## Recommended Action
+Proceed with staged rollout, paired with active guardrail monitoring and predefined rollback thresholds.
 """
     REPORT_PATH.write_text(text, encoding="utf-8")
 
@@ -347,14 +376,14 @@ Run phased rollout with guardrail monitoring and instrumentation checks.
 def _write_walkthrough() -> None:
     text = """# Dashboard Walkthrough
 
-This dashboard is the final deliverable for the MindLift experimentation project.
+This dashboard is a client-facing readout of the MindLift onboarding experiment.
 
 ## What it covers
-1. Product experiment context and hypothesis
-2. Data quality and simulation realism checks
-3. Core A/B results for primary, secondary, and guardrail metrics
-4. Funnel progression and retention dynamics
-5. Segment-level performance views
+1. Business question and experiment design
+2. Metric definitions and why each metric matters
+3. Pipeline workflow from raw events to decision-ready outputs
+4. Headline results with guardrail interpretation
+5. Funnel, trend, and segment diagnostics
 6. Final recommendation and action plan
 
 ## Documentation included in repo

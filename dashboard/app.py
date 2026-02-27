@@ -46,17 +46,17 @@ def _required_files_exist() -> tuple[bool, list[str]]:
 
 ok, missing_files = _required_files_exist()
 
-st.title("MindLift Experimentation Platform")
-st.subheader("Final Deliverable Dashboard")
+st.title("MindLift Onboarding Experiment")
+st.subheader("Client-Facing Results Dashboard")
 st.markdown(
     """
-This dashboard is a complete walkthrough of the project from data generation to experiment decision.
+This dashboard explains the full experiment in plain language, from question to recommendation.
 
-Use it as an internal-style readout for stakeholders who need to understand:
-- what the experiment was,
-- how metrics were defined,
-- what results were observed,
-- and what action is recommended.
+Use this page to quickly understand:
+- what we tested,
+- how success was measured,
+- what the results say,
+- and what action to take next.
 """
 )
 
@@ -88,36 +88,36 @@ treatment = summary[summary["assigned_variant"] == "treatment"].iloc[0]
 activation_lift_pp = 100 * (treatment["activation_rate_7d"] - control["activation_rate_7d"])
 
 st.divider()
-st.header("1) Experiment Context")
+st.header("1) What Was Tested")
 st.markdown(
     """
-**Business question:** Does redesigned onboarding improve activation for new users?
+**Business question:** Does the redesigned onboarding flow improve early activation for new users?
 
 **Experiment design:** 50/50 A/B assignment at signup.
 - `control`: old onboarding
 - `treatment`: redesigned onboarding
 
-**Primary metric:** `activated_within_7d`
+**Primary success metric:** 7-Day Activation Rate
 
-**Guardrails:** cancellation rate, match latency, support tickets.
+**Safety guardrails:** cancellation rate, match latency, and support ticket volume.
 """
 )
 
 st.subheader("Metric Dictionary")
-st.caption("Each metric used below includes its formal definition and desired direction.")
+st.caption("Each metric includes what it means, why it matters, and which direction is better.")
 st.dataframe(metric_dict, use_container_width=True)
 
 st.divider()
-st.header("2) End-to-End Workflow")
-st.markdown("This is the exact workflow implemented in the project pipeline.")
+st.header("2) How The Analysis Was Built")
+st.markdown("This is the end-to-end workflow used to go from event logs to a decision.")
 st.dataframe(workflow.sort_values("step_order"), use_container_width=True)
 
 st.divider()
-st.header("3) Topline Results")
+st.header("3) Headline Results")
 st.markdown(
     """
-These KPIs compare treatment against control at the user level.
-The most important value is **Activation Lift** (treatment minus control).
+These headline KPIs compare treatment against control at the user level.
+The key number is **Activation Lift**: treatment activation minus control activation.
 """
 )
 
@@ -128,26 +128,48 @@ k3.metric("Treatment Activation", f"{100*treatment['activation_rate_7d']:.2f}%")
 k4.metric("Total Users", f"{int(summary['users'].sum()):,}")
 
 st.subheader("Variant Summary Table")
-st.caption("Interpretation: compare each row to determine treatment impact on primary, secondary, and guardrail metrics.")
-st.dataframe(summary, use_container_width=True)
+st.caption("Interpretation: compare treatment vs control across growth metrics and guardrails.")
+summary_display = summary.rename(
+    columns={
+        "assigned_variant": "Variant",
+        "users": "Users",
+        "activation_rate_7d": "Activation Rate (7D)",
+        "retention_rate_d7": "Retention Rate (D7)",
+        "retention_rate_d30": "Retention Rate (D30)",
+        "cancellation_rate_30d": "Cancellation Rate (30D)",
+        "avg_match_latency_hours": "Avg Match Latency (hrs)",
+        "support_tickets_per_user": "Support Tickets per User (30D)",
+        "noncompliance_rate": "Noncompliance Rate",
+    }
+)
+st.dataframe(summary_display, use_container_width=True)
 
 st.divider()
-st.header("4) Funnel and Retention Dynamics")
+st.header("4) Behavior Through The Funnel")
 
 st.subheader("Onboarding Funnel")
 st.markdown(
     """
-This chart shows progression from signup through activation.
-A wider gap in later funnel steps indicates treatment impact in onboarding completion and booking.
+This chart tracks user drop-off from signup to activation.
+If treatment bars stay higher in later steps, the redesign is improving completion and booking behavior.
 """
 )
 funnel_wide = funnel.pivot(index="step", columns="assigned_variant", values="rate_from_signup")
+funnel_wide = funnel_wide.rename(
+    index={
+        "signup": "Signup",
+        "onboarding_started": "Onboarding Started",
+        "onboarding_completed": "Onboarding Completed",
+        "session_booked": "Session Booked",
+        "activated_within_7d": "Activated Within 7 Days",
+    }
+)
 st.bar_chart(funnel_wide)
 
 st.subheader("Daily Activation Trend")
 st.markdown(
     """
-This time-series checks whether treatment effect is stable over signup cohorts and not driven by a single day.
+This trend checks whether the lift is stable over time instead of being driven by a narrow date window.
 """
 )
 daily_plot = daily.copy()
@@ -159,8 +181,8 @@ st.divider()
 st.header("5) Segment Analysis")
 st.markdown(
     """
-Segment views help identify where the treatment performs best.
-Use this to guide targeted rollout messaging or UX prioritization.
+This section shows where the treatment performs best across user segments.
+Use this to guide rollout prioritization and messaging strategy.
 """
 )
 
@@ -169,20 +191,40 @@ seg = segments[segments["segment_dimension"] == dim].copy()
 seg_chart = seg.pivot(index="segment_value", columns="assigned_variant", values="activation_rate_7d")
 st.bar_chart(seg_chart)
 st.caption("Segment table with user counts and activation rates by variant.")
-st.dataframe(seg, use_container_width=True)
+seg_display = seg.rename(
+    columns={
+        "segment_dimension": "Segment Type",
+        "segment_value": "Segment Value",
+        "assigned_variant": "Variant",
+        "users": "Users",
+        "activation_rate_7d": "Activation Rate (7D)",
+    }
+)
+st.dataframe(seg_display, use_container_width=True)
 
 st.divider()
-st.header("6) Data Quality and Realism Checks")
+st.header("6) Data Quality Checks")
 st.markdown(
     """
-These checks validate that the synthetic dataset behaves like a realistic event pipeline
-(duplicates, noncompliance, plausible activation range).
+These checks confirm the simulation behaves like a realistic event pipeline
+(for example duplicates and imperfect treatment exposure).
 """
 )
-st.dataframe(quality, use_container_width=True)
+quality_display = quality.copy()
+quality_display["check"] = quality_display["check"].map(
+    {
+        "users": "Total simulated users",
+        "events_raw": "Total raw events",
+        "duplicate_event_rate": "Duplicate event rate",
+        "noncompliance_rate": "Noncompliance rate",
+        "activation_rate_7d": "Overall activation rate (7D)",
+    }
+).fillna(quality_display["check"])
+quality_display = quality_display.rename(columns={"check": "Check", "value": "Value"})
+st.dataframe(quality_display, use_container_width=True)
 
 st.divider()
-st.header("7) Final Recommendation and Action")
+st.header("7) Recommendation and Next Action")
 row = recommendation.iloc[0]
 
 st.subheader("Decision")
@@ -197,16 +239,22 @@ st.write(row["action_plan"])
 st.markdown("**Decision diagnostics**")
 diag = pd.DataFrame(
     [
-        {"metric": "Activation lift (pp)", "value": row["activation_lift_pp"]},
-        {"metric": "Cancellation delta (pp)", "value": row["cancellation_delta_pp"]},
-        {"metric": "Match latency delta (hours)", "value": row["match_latency_delta_hours"]},
-        {"metric": "Support ticket delta", "value": row["support_ticket_delta"]},
+        {"Metric": "Activation lift (percentage points)", "Value": row["activation_lift_pp"]},
+        {"Metric": "Cancellation delta (percentage points)", "Value": row["cancellation_delta_pp"]},
+        {"Metric": "Match latency delta (hours)", "Value": row["match_latency_delta_hours"]},
+        {"Metric": "Support ticket delta (tickets per user)", "Value": row["support_ticket_delta"]},
     ]
 )
 st.dataframe(diag, use_container_width=True)
 
 st.divider()
-st.header("8) Documentation Appendix")
+st.header("8) Methodology Appendix")
+st.markdown(
+    """
+The sections below contain full technical documentation for auditability and reproducibility.
+The main dashboard above is intentionally business-first; this appendix provides implementation detail.
+"""
+)
 
 with st.expander("Simulation Specification", expanded=False):
     st.markdown(simulation_spec or "Missing docs/simulation_spec.md")
