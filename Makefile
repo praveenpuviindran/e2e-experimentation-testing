@@ -1,10 +1,9 @@
 PYTHON ?= python
 
-.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap s3-upload s3-download dashboard tableau-export
+.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap s3-upload s3-download dashboard dashboard-data final-deliverable
 
 setup:
-	$(PYTHON) -m venv .venv
-	. .venv/bin/activate && $(PYTHON) -m pip install --upgrade pip
+	test -d .venv || $(PYTHON) -m venv .venv
 	. .venv/bin/activate && $(PYTHON) -m pip install -r requirements.txt
 
 test-db:
@@ -44,7 +43,9 @@ s3-download:
 	. .venv/bin/activate && $(PYTHON) -m src.pipeline.s3_sync download
 
 dashboard:
-	. .venv/bin/activate && streamlit run dashboard/app.py
+	. .venv/bin/activate && streamlit run dashboard/app.py --server.address 127.0.0.1 --server.port 8501
 
-tableau-export:
-	. .venv/bin/activate && $(PYTHON) -m src.analysis.export_tableau_data
+dashboard-data:
+	. .venv/bin/activate && $(PYTHON) -m src.analysis.build_dashboard_bundle
+
+final-deliverable: setup generate dashboard-data dashboard

@@ -42,18 +42,14 @@ experimentation-platform/
 ```
 
 ## Quickstart
-1. Configure environment:
+One-command final deliverable (no Postgres required):
 ```bash
-cp .env.example .env
-```
-Then edit `.env` with your local Postgres credentials only if defaults do not work.
-
-2. One-command run (fresh clone path):
-```bash
-make bootstrap
+make final-deliverable
 ```
 
-`make bootstrap` runs setup + connection test + full pipeline.
+`make final-deliverable` runs setup + synthetic data generation + dashboard artifact build + Streamlit launch.
+
+Postgres and `.env` are only needed if you want the optional warehouse pipeline (`make bootstrap`, `make load`, `make metrics`, etc.).
 
 ## Standard commands
 - `make setup` - create `.venv` and install dependencies
@@ -71,7 +67,8 @@ make bootstrap
 - `make s3-upload` - upload `data/raw` files to S3
 - `make s3-download` - download raw files from S3 into `data/raw`
 - `make dashboard` - launch Streamlit dashboard
-- `make tableau-export` - create Tableau Online upload files from `data/raw`
+- `make dashboard-data` - build dashboard tables/readout from raw CSVs (no Postgres)
+- `make final-deliverable` - one-command final app launch (setup + generate + dashboard-data + dashboard)
 
 ## Outputs
 Generated artifacts:
@@ -80,38 +77,18 @@ Generated artifacts:
 - Readout: `reports/experiment_readout.md`
 - Executive summary: `reports/executive_summary.md`
 
-## Streamlit dashboard
+## Streamlit dashboard (Primary Deliverable)
 Launch:
 ```bash
-make dashboard
+make final-deliverable
 ```
 
-Default mode reads from `reports/tables` and shows:
-- Primary metric lift and p-value
-- MDE snapshot
-- Metric-level effects + FDR
-- CUPED variance reduction
-- Pre-registered segment analysis
-
-If Postgres pipeline is unavailable, run a fast local fallback:
-```bash
-make tableau-export
-make dashboard
-```
-
-Fallback mode reads from `data/processed/tableau/mindlift_tableau_user_level.csv` and still renders experiment metrics/charts (without inferential stats like CI/p-values).
-
-## Tableau Online dashboard
-Generate Tableau-ready files:
-```bash
-make tableau-export
-```
-
-Upload this file in Tableau Online (`Connect to Data -> Upload from file`):
-- `data/processed/tableau/mindlift_tableau_user_level.csv`
-
-Full click-by-click build instructions:
-- `docs/tableau_online_build_guide.md`
+The app walks through:
+- project context and hypothesis
+- simulation/data quality checks
+- core experiment results (funnel, trend, segment views)
+- experiment readout summary
+- simulation spec, pre-registration, and resume bullets
 
 ## Optional S3 data-lake sync
 Set these in `.env` if using S3:
