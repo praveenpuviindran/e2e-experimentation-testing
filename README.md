@@ -88,7 +88,7 @@ The app walks through:
 - simulation/data quality checks
 - core experiment results (funnel, trend, segment views)
 - experiment readout summary
-- simulation spec, pre-registration, and resume bullets
+- simulation spec and pre-registration
 
 ## Optional S3 data-lake sync
 Set these in `.env` if using S3:
@@ -127,4 +127,3 @@ On macOS Postgres.app/Homebrew, `PGUSER` is often your mac username.
 ## Documentation
 - Simulation assumptions: `docs/simulation_spec.md`
 - Pre-registration plan: `docs/preregistration.md`
-- Resume bullets: `docs/resume_bullets.md`

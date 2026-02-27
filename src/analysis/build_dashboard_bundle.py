@@ -220,6 +220,106 @@ def compute_data_quality(user_level: pd.DataFrame, raw_events: pd.DataFrame) -> 
     )
 
 
+def compute_metric_dictionary() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "metric": "activated_within_7d",
+                "type": "Primary",
+                "definition": "User completed onboarding and booked first session within 7 days of signup.",
+                "good_direction": "Higher",
+            },
+            {
+                "metric": "retained_d7",
+                "type": "Secondary",
+                "definition": "User had at least one app_open event at or after day 7 from signup.",
+                "good_direction": "Higher",
+            },
+            {
+                "metric": "retained_d30",
+                "type": "Secondary",
+                "definition": "User had at least one app_open event at or after day 30 from signup.",
+                "good_direction": "Higher",
+            },
+            {
+                "metric": "cancelled_30d",
+                "type": "Guardrail",
+                "definition": "Cancellation occurred within 30 days of signup.",
+                "good_direction": "Lower",
+            },
+            {
+                "metric": "time_to_first_match_hours",
+                "type": "Guardrail",
+                "definition": "Hours between signup and first therapist match timestamp.",
+                "good_direction": "Lower",
+            },
+            {
+                "metric": "support_tickets_30d",
+                "type": "Guardrail",
+                "definition": "Number of support tickets created by user in first 30 days.",
+                "good_direction": "Lower",
+            },
+            {
+                "metric": "noncompliance_flag",
+                "type": "Design Integrity",
+                "definition": "Assigned variant differs from actually exposed variant.",
+                "good_direction": "Lower",
+            },
+        ]
+    )
+
+
+def compute_workflow_steps() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"step_order": 1, "step": "Synthetic Data Generation", "description": "Generate realistic raw events and dimensions with noncompliance, missingness, and duplicates."},
+            {"step_order": 2, "step": "Metric Construction", "description": "Derive activation, retention, and guardrail metrics at user level from raw logs."},
+            {"step_order": 3, "step": "Quality Validation", "description": "Validate row counts, duplicate-event rate, noncompliance rate, and activation plausibility."},
+            {"step_order": 4, "step": "Experiment Summarization", "description": "Aggregate user-level metrics by variant and segment for decision support."},
+            {"step_order": 5, "step": "Decision Recommendation", "description": "Recommend rollout/hold based on primary lift and guardrail behavior."},
+        ]
+    )
+
+
+def compute_final_recommendation(summary: pd.DataFrame) -> pd.DataFrame:
+    control = summary[summary["assigned_variant"] == "control"].iloc[0]
+    treatment = summary[summary["assigned_variant"] == "treatment"].iloc[0]
+
+    primary_lift = float(treatment["activation_rate_7d"] - control["activation_rate_7d"])
+    cancellation_delta = float(treatment["cancellation_rate_30d"] - control["cancellation_rate_30d"])
+    latency_delta = float(treatment["avg_match_latency_hours"] - control["avg_match_latency_hours"])
+    support_delta = float(treatment["support_tickets_per_user"] - control["support_tickets_per_user"])
+
+    guardrail_worse = (cancellation_delta > 0) or (latency_delta > 0) or (support_delta > 0)
+
+    if primary_lift > 0 and not guardrail_worse:
+        decision = "Ship treatment with phased rollout"
+        rationale = "Primary metric improved and guardrails did not worsen."
+        action_plan = "Roll out 10% -> 50% -> 100% while monitoring guardrails daily."
+    elif primary_lift > 0 and guardrail_worse:
+        decision = "Do not fully ship yet"
+        rationale = "Primary metric improved, but one or more guardrails worsened."
+        action_plan = "Mitigate guardrail issues, then rerun a focused follow-up experiment."
+    else:
+        decision = "Do not ship treatment"
+        rationale = "Primary metric did not improve versus control."
+        action_plan = "Iterate onboarding design and retest."
+
+    return pd.DataFrame(
+        [
+            {
+                "decision": decision,
+                "rationale": rationale,
+                "action_plan": action_plan,
+                "activation_lift_pp": 100 * primary_lift,
+                "cancellation_delta_pp": 100 * cancellation_delta,
+                "match_latency_delta_hours": latency_delta,
+                "support_ticket_delta": support_delta,
+            }
+        ]
+    )
+
+
 def _write_readout(summary: pd.DataFrame) -> None:
     control = summary[summary["assigned_variant"] == "control"].iloc[0]
     treatment = summary[summary["assigned_variant"] == "treatment"].iloc[0]
@@ -255,12 +355,11 @@ This dashboard is the final deliverable for the MindLift experimentation project
 3. Core A/B results for primary, secondary, and guardrail metrics
 4. Funnel progression and retention dynamics
 5. Segment-level performance views
-6. Resume-ready summary points
+6. Final recommendation and action plan
 
 ## Documentation included in repo
 - docs/simulation_spec.md
 - docs/preregistration.md
-- docs/resume_bullets.md
 - reports/experiment_readout.md
 """
     WALKTHROUGH_PATH.write_text(text, encoding="utf-8")
@@ -287,6 +386,9 @@ def main() -> None:
     daily = compute_daily_activation(user_level)
     segments = compute_segment_activation(user_level)
     quality = compute_data_quality(user_level, raw_events)
+    metric_dict = compute_metric_dictionary()
+    workflow = compute_workflow_steps()
+    recommendation = compute_final_recommendation(summary)
 
     user_level.to_csv(TABLES_DIR / "dashboard_user_level.csv", index=False)
     summary.to_csv(TABLES_DIR / "dashboard_variant_summary.csv", index=False)
@@ -294,6 +396,9 @@ def main() -> None:
     daily.to_csv(TABLES_DIR / "dashboard_daily_activation.csv", index=False)
     segments.to_csv(TABLES_DIR / "dashboard_segment_activation.csv", index=False)
     quality.to_csv(TABLES_DIR / "dashboard_data_quality.csv", index=False)
+    metric_dict.to_csv(TABLES_DIR / "dashboard_metric_dictionary.csv", index=False)
+    workflow.to_csv(TABLES_DIR / "dashboard_workflow_steps.csv", index=False)
+    recommendation.to_csv(TABLES_DIR / "dashboard_final_recommendation.csv", index=False)
 
     _write_readout(summary)
     _write_walkthrough()
