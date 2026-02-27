@@ -14,19 +14,24 @@ logger = get_logger(__name__)
 RAW_DIR = Path("data/raw")
 
 
+TABLE_SPECS = [
+    ("dim_users", ["user_id"]),
+    ("fact_sessions", ["session_id"]),
+    ("fact_events", ["event_id"]),
+    ("fact_subscriptions", ["user_id"]),
+    ("fact_cancellations", ["user_id"]),
+    ("fact_support_tickets", ["ticket_id"]),
+    ("fact_matches", ["user_id"]),
+]
+
+
 def _read_csv_columns(csv_path: Path) -> list[str]:
     with csv_path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.reader(f)
-        header = next(reader)
-    return header
+        return next(reader)
 
 
-def _copy_and_upsert(
-    raw_conn,
-    csv_path: Path,
-    table_name: str,
-    pk_columns: list[str],
-) -> None:
+def _copy_and_upsert(raw_conn, csv_path: Path, table_name: str, pk_columns: list[str]) -> None:
     if not csv_path.exists():
         raise FileNotFoundError(f"Missing input file: {csv_path}")
 
@@ -66,15 +71,13 @@ def main() -> None:
     apply_schema_main()
 
     engine = create_engine(get_database_url())
-
-    user_file = RAW_DIR / "dim_users.csv"
-    events_file = RAW_DIR / "fact_events.csv"
-
-    logger.info("Loading raw files from %s", RAW_DIR)
     raw_conn = engine.raw_connection()
+
     try:
-        _copy_and_upsert(raw_conn, user_file, "dim_users", ["user_id"])
-        _copy_and_upsert(raw_conn, events_file, "fact_events", ["event_id"])
+        for table_name, pk_columns in TABLE_SPECS:
+            csv_path = RAW_DIR / f"{table_name}.csv"
+            logger.info("Loading %s", csv_path)
+            _copy_and_upsert(raw_conn, csv_path, table_name, pk_columns)
         raw_conn.commit()
     except Exception:
         raw_conn.rollback()
