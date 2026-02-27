@@ -52,6 +52,16 @@ def ensure_target_database_exists() -> None:
                 "PostgreSQL authentication failed. Update PGUSER/PGPASSWORD in .env and retry."
             ) from exc
 
+        if (
+            "connection refused" in message.lower()
+            or "operation not permitted" in message.lower()
+            or "could not connect to server" in message.lower()
+        ):
+            raise SystemExit(
+                "PostgreSQL server is not reachable at PGHOST/PGPORT. "
+                "Start Postgres (or Docker container) and retry."
+            ) from exc
+
         raise SystemExit(
             "Could not connect to admin database to create/check PGDATABASE. "
             "Set PGADMIN_DATABASE (usually 'postgres') or DATABASE_ADMIN_URL in .env."
