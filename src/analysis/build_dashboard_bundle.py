@@ -286,11 +286,41 @@ def compute_metric_dictionary() -> pd.DataFrame:
 def compute_workflow_steps() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"step_order": 1, "step": "Synthetic Data Generation", "description": "Generate realistic raw events and dimensions with noncompliance, missingness, and duplicates."},
-            {"step_order": 2, "step": "Metric Construction", "description": "Derive activation, retention, and guardrail metrics at user level from raw logs."},
-            {"step_order": 3, "step": "Quality Validation", "description": "Validate row counts, duplicate-event rate, noncompliance rate, and activation plausibility."},
-            {"step_order": 4, "step": "Experiment Summarization", "description": "Aggregate user-level metrics by variant and segment for decision support."},
-            {"step_order": 5, "step": "Decision Recommendation", "description": "Recommend rollout/hold based on primary lift and guardrail behavior."},
+            {
+                "step_order": 1,
+                "step": "Synthetic Data Generation",
+                "tools_used": "Python (pandas, numpy)",
+                "description": "I generate realistic raw event data with duplicates, missingness, noncompliance, and segment heterogeneity.",
+                "project_purpose": "Create a realistic product analytics dataset when real logs are unavailable.",
+            },
+            {
+                "step_order": 2,
+                "step": "Metric Construction",
+                "tools_used": "Python + SQL-style event logic",
+                "description": "I transform raw events into user-level experiment metrics (activation, retention, guardrails).",
+                "project_purpose": "Define business metrics in a reproducible, auditable way.",
+            },
+            {
+                "step_order": 3,
+                "step": "Quality Validation",
+                "tools_used": "Python checks + tests",
+                "description": "I validate row counts, duplicate-event rate, noncompliance rate, and metric plausibility.",
+                "project_purpose": "Ensure metrics are trustworthy before analysis.",
+            },
+            {
+                "step_order": 4,
+                "step": "Experiment Summarization",
+                "tools_used": "Python aggregations",
+                "description": "I compare treatment vs control and break down performance by key user segments.",
+                "project_purpose": "Translate raw data into decision-ready evidence.",
+            },
+            {
+                "step_order": 5,
+                "step": "Decision Recommendation",
+                "tools_used": "Rule-based decision framework",
+                "description": "I recommend rollout, hold, or retest based on primary lift and guardrail thresholds.",
+                "project_purpose": "Connect analytics output to clear product action.",
+            },
         ]
     )
 
@@ -376,12 +406,13 @@ Proceed with staged rollout, paired with active guardrail monitoring and predefi
 def _write_walkthrough() -> None:
     text = """# Dashboard Walkthrough
 
-This dashboard is a client-facing readout of the MindLift onboarding experiment.
+This dashboard is the final workflow readout for my MindLift experimentation project.
 
 ## What it covers
-1. Business question and experiment design
+1. Why onboarding was chosen as the experiment focus
 2. Metric definitions and why each metric matters
-3. Pipeline workflow from raw events to decision-ready outputs
+3. End-to-end workflow from raw events to decision-ready outputs
+4. Tools used at each step (Python, SQL-style modeling, testing)
 4. Headline results with guardrail interpretation
 5. Funnel, trend, and segment diagnostics
 6. Final recommendation and action plan

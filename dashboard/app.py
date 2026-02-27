@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 
-st.set_page_config(page_title="MindLift Final Deliverable", page_icon="📊", layout="wide")
+st.set_page_config(page_title="MindLift Experiment Workflow", page_icon="📊", layout="wide")
 
 ROOT = Path(".")
 TABLES_DIR = ROOT / "reports/tables"
@@ -46,17 +46,19 @@ def _required_files_exist() -> tuple[bool, list[str]]:
 
 ok, missing_files = _required_files_exist()
 
-st.title("MindLift Onboarding Experiment")
-st.subheader("Client-Facing Results Dashboard")
+st.title("MindLift Experiment Workflow Project")
+st.subheader("End-to-End Product Analytics + Experimentation")
 st.markdown(
     """
-This dashboard explains the full experiment in plain language, from question to recommendation.
+This is my full workflow project for experimentation analytics.
 
-Use this page to quickly understand:
-- what we tested,
-- how success was measured,
-- what the results say,
-- and what action to take next.
+I built this project to answer a practical product question:
+**If onboarding is redesigned, do more users reach meaningful activation without harming user experience?**
+
+Why onboarding?
+- It is the first critical moment in a subscription app.
+- Small onboarding improvements can compound into retention and revenue gains.
+- If onboarding changes create friction, guardrails catch that risk early.
 """
 )
 
@@ -88,36 +90,60 @@ treatment = summary[summary["assigned_variant"] == "treatment"].iloc[0]
 activation_lift_pp = 100 * (treatment["activation_rate_7d"] - control["activation_rate_7d"])
 
 st.divider()
-st.header("1) What Was Tested")
+st.header("Glossary (Plain Language)")
+glossary = pd.DataFrame(
+    [
+        {"term": "KPI", "meaning": "Key Performance Indicator: a metric used to judge whether the product goal improved."},
+        {"term": "Control", "meaning": "Users who saw the original onboarding flow."},
+        {"term": "Treatment", "meaning": "Users who saw the redesigned onboarding flow."},
+        {"term": "Activation", "meaning": "A user completes onboarding and books first session within 7 days."},
+        {"term": "Activation Lift", "meaning": "Treatment activation rate minus control activation rate (in percentage points)."},
+        {"term": "Funnel", "meaning": "Step-by-step conversion path from signup to activation."},
+        {"term": "Guardrail", "meaning": "Safety metric that should not worsen while chasing growth."},
+    ]
+)
+st.dataframe(glossary, use_container_width=True)
+
+st.divider()
+st.header("Step 1: Experiment Design and Metric Definitions")
 st.markdown(
     """
-**Business question:** Does the redesigned onboarding flow improve early activation for new users?
+In this project, I simulate an A/B onboarding experiment:
+- **Control** = old onboarding
+- **Treatment** = redesigned onboarding
 
-**Experiment design:** 50/50 A/B assignment at signup.
-- `control`: old onboarding
-- `treatment`: redesigned onboarding
-
-**Primary success metric:** 7-Day Activation Rate
-
-**Safety guardrails:** cancellation rate, match latency, and support ticket volume.
+I evaluate success with a primary KPI and guardrails so the result is balanced, not growth-at-any-cost.
 """
 )
-
-st.subheader("Metric Dictionary")
-st.caption("Each metric includes what it means, why it matters, and which direction is better.")
+st.subheader("Metric Definitions")
+st.caption("Each metric below includes what it means, why it matters, and desired direction.")
 st.dataframe(metric_dict, use_container_width=True)
 
 st.divider()
-st.header("2) How The Analysis Was Built")
-st.markdown("This is the end-to-end workflow used to go from event logs to a decision.")
-st.dataframe(workflow.sort_values("step_order"), use_container_width=True)
-
-st.divider()
-st.header("3) Headline Results")
+st.header("Step 2: Workflow and Tools Used")
 st.markdown(
     """
-These headline KPIs compare treatment against control at the user level.
-The key number is **Activation Lift**: treatment activation minus control activation.
+This table shows how I built the project end-to-end.
+Each step connects technical work to a business purpose.
+"""
+)
+workflow_display = workflow.rename(
+    columns={
+        "step_order": "Order",
+        "step": "Workflow Step",
+        "tools_used": "Tools Used",
+        "description": "What I Did",
+        "project_purpose": "Why This Step Matters",
+    }
+)
+st.dataframe(workflow_display.sort_values("Order"), use_container_width=True)
+
+st.divider()
+st.header("Step 3: Headline Experiment Results")
+st.markdown(
+    """
+These KPIs compare treatment vs control across the full user population.
+The primary number to read first is **Activation Lift**.
 """
 )
 
@@ -127,8 +153,8 @@ k2.metric("Control Activation", f"{100*control['activation_rate_7d']:.2f}%")
 k3.metric("Treatment Activation", f"{100*treatment['activation_rate_7d']:.2f}%")
 k4.metric("Total Users", f"{int(summary['users'].sum()):,}")
 
-st.subheader("Variant Summary Table")
-st.caption("Interpretation: compare treatment vs control across growth metrics and guardrails.")
+st.subheader("Detailed KPI Table")
+st.caption("Use this table to inspect primary, secondary, and guardrail metrics side-by-side.")
 summary_display = summary.rename(
     columns={
         "assigned_variant": "Variant",
@@ -145,13 +171,13 @@ summary_display = summary.rename(
 st.dataframe(summary_display, use_container_width=True)
 
 st.divider()
-st.header("4) Behavior Through The Funnel")
+st.header("Step 4: Conversion Behavior (Funnel + Time Trend)")
 
 st.subheader("Onboarding Funnel")
 st.markdown(
     """
-This chart tracks user drop-off from signup to activation.
-If treatment bars stay higher in later steps, the redesign is improving completion and booking behavior.
+This chart shows how users progress from signup to activation.
+If treatment remains higher across later steps, onboarding redesign likely improves conversion flow.
 """
 )
 funnel_wide = funnel.pivot(index="step", columns="assigned_variant", values="rate_from_signup")
@@ -166,10 +192,11 @@ funnel_wide = funnel_wide.rename(
 )
 st.bar_chart(funnel_wide)
 
-st.subheader("Daily Activation Trend")
+st.subheader("Activation Trend Over Time")
 st.markdown(
     """
-This trend checks whether the lift is stable over time instead of being driven by a narrow date window.
+This trend shows whether treatment lift appears consistently across signup dates
+instead of being caused by one short period.
 """
 )
 daily_plot = daily.copy()
@@ -178,19 +205,19 @@ daily_wide = daily_plot.pivot(index="signup_date", columns="assigned_variant", v
 st.line_chart(daily_wide)
 
 st.divider()
-st.header("5) Segment Analysis")
+st.header("Step 5: Segment Diagnostics")
 st.markdown(
     """
-This section shows where the treatment performs best across user segments.
-Use this to guide rollout prioritization and messaging strategy.
+Segment analysis helps identify where treatment impact is strongest.
+I use this to understand if the effect is broad or concentrated in specific user groups.
 """
 )
 
-dim = st.selectbox("Segment Dimension", sorted(segments["segment_dimension"].unique().tolist()))
+dim = st.selectbox("Choose Segment Dimension", sorted(segments["segment_dimension"].unique().tolist()))
 seg = segments[segments["segment_dimension"] == dim].copy()
 seg_chart = seg.pivot(index="segment_value", columns="assigned_variant", values="activation_rate_7d")
 st.bar_chart(seg_chart)
-st.caption("Segment table with user counts and activation rates by variant.")
+
 seg_display = seg.rename(
     columns={
         "segment_dimension": "Segment Type",
@@ -203,11 +230,11 @@ seg_display = seg.rename(
 st.dataframe(seg_display, use_container_width=True)
 
 st.divider()
-st.header("6) Data Quality Checks")
+st.header("Step 6: Data Quality and Realism Validation")
 st.markdown(
     """
-These checks confirm the simulation behaves like a realistic event pipeline
-(for example duplicates and imperfect treatment exposure).
+Before trusting results, I validate that the synthetic data behaves like a realistic product event pipeline.
+This includes duplicates, noncompliance, and plausible conversion levels.
 """
 )
 quality_display = quality.copy()
@@ -224,35 +251,52 @@ quality_display = quality_display.rename(columns={"check": "Check", "value": "Va
 st.dataframe(quality_display, use_container_width=True)
 
 st.divider()
-st.header("7) Recommendation and Next Action")
-row = recommendation.iloc[0]
+st.header("Step 7: Final Decision and Action Plan")
+st.markdown(
+    """
+This section converts analysis into a product decision.
+I use primary-lift evidence + guardrail tolerances to determine the rollout path.
+"""
+)
 
+row = recommendation.iloc[0]
 st.subheader("Decision")
 st.success(row["decision"])
 
-st.markdown("**Why this decision?**")
+st.markdown("**Reasoning**")
 st.write(row["rationale"])
 
-st.markdown("**Recommended action plan**")
+st.markdown("**Action Plan**")
 st.write(row["action_plan"])
 
-st.markdown("**Decision diagnostics**")
+st.subheader("Decision Diagnostics")
 diag = pd.DataFrame(
     [
         {"Metric": "Activation lift (percentage points)", "Value": row["activation_lift_pp"]},
         {"Metric": "Cancellation delta (percentage points)", "Value": row["cancellation_delta_pp"]},
         {"Metric": "Match latency delta (hours)", "Value": row["match_latency_delta_hours"]},
         {"Metric": "Support ticket delta (tickets per user)", "Value": row["support_ticket_delta"]},
+        {
+            "Metric": "Cancellation guardrail within tolerance",
+            "Value": bool(row["guardrail_cancellation_within_tolerance"]),
+        },
+        {
+            "Metric": "Latency guardrail within tolerance",
+            "Value": bool(row["guardrail_latency_within_tolerance"]),
+        },
+        {
+            "Metric": "Support guardrail within tolerance",
+            "Value": bool(row["guardrail_support_within_tolerance"]),
+        },
     ]
 )
 st.dataframe(diag, use_container_width=True)
 
 st.divider()
-st.header("8) Methodology Appendix")
+st.header("Step 8: Technical Appendix")
 st.markdown(
     """
-The sections below contain full technical documentation for auditability and reproducibility.
-The main dashboard above is intentionally business-first; this appendix provides implementation detail.
+This appendix contains the full technical documentation used to build and validate the project.
 """
 )
 
@@ -269,5 +313,5 @@ with st.expander("Dashboard Walkthrough Notes", expanded=False):
     st.markdown(walkthrough or "Missing reports/dashboard_walkthrough.md")
 
 st.divider()
-st.subheader("One-Command Rebuild")
+st.subheader("Run This Project")
 st.code("make final-deliverable", language="bash")
