@@ -49,9 +49,14 @@ experimentation-platform/
    ```bash
    make test-db
    ```
+4. Apply warehouse schema:
+   ```bash
+   make schema
+   ```
 
 ## Planned pipeline commands
 These are scaffolded now and implemented incrementally through slices:
+- `make schema`
 - `make generate`
 - `make load`
 - `make metrics`

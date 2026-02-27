@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: setup test-db generate load metrics analyze report all
+.PHONY: setup test-db schema generate load metrics analyze report all
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -9,6 +9,9 @@ setup:
 
 test-db:
 	. .venv/bin/activate && $(PYTHON) -m src.pipeline.test_postgres_connection
+
+schema:
+	. .venv/bin/activate && $(PYTHON) -m src.pipeline.apply_schema
 
 generate:
 	. .venv/bin/activate && $(PYTHON) -m src.data_gen.generate_data
