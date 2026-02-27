@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: setup test-db schema generate load metrics analyze report all
+.PHONY: setup test-db schema generate load qa metrics analyze report pipeline all bootstrap
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -19,6 +19,9 @@ generate:
 load:
 	. .venv/bin/activate && $(PYTHON) -m src.pipeline.load_to_postgres
 
+qa:
+	. .venv/bin/activate && $(PYTHON) -m src.pipeline.data_quality_checks
+
 metrics:
 	. .venv/bin/activate && $(PYTHON) -m src.pipeline.build_metrics
 
@@ -28,4 +31,8 @@ analyze:
 report:
 	. .venv/bin/activate && $(PYTHON) -m src.analysis.build_report
 
-all: generate load metrics analyze report
+pipeline: generate load qa metrics analyze report
+
+all: pipeline
+
+bootstrap: setup pipeline

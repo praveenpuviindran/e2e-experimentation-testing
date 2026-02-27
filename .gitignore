@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+
+# Generated raw data
+/data/raw/*.csv
+/data/processed/*.csv
+
+# Generated reports artifacts
+/reports/figures/*.png
+/reports/tables/*.csv
+
+# macOS
+.DS_Store
