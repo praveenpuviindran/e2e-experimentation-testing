@@ -4,6 +4,11 @@ from src.analysis.stats_utils import bootstrap_diff_in_means, estimate_ab
 
 
 def test_bootstrap_ci_contains_true_difference_for_simple_case() -> None:
+    """Bootstrap confidence interval should bracket the observed difference in means.
+
+    For a simple binary example with a clear treatment lift, the 95% CI produced by
+    bootstrap_diff_in_means must contain the observed (non-bootstrapped) difference.
+    """
     control = np.array([0, 0, 1, 1, 0, 1, 0, 1])
     treatment = np.array([1, 1, 1, 1, 0, 1, 1, 1])
 
@@ -14,6 +19,11 @@ def test_bootstrap_ci_contains_true_difference_for_simple_case() -> None:
 
 
 def test_estimate_ab_returns_expected_fields() -> None:
+    """estimate_ab should return a result struct with all required fields and valid values.
+
+    Verifies that the effect direction is correct (treatment > control), sample sizes
+    are recorded accurately, and the p-value is a valid probability in [0, 1].
+    """
     control = np.array([1.0, 2.0, 3.0, 4.0])
     treatment = np.array([2.0, 3.0, 4.0, 5.0])
 

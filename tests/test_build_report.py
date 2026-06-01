@@ -4,6 +4,12 @@ from src.analysis.build_report import _decision_text
 
 
 def test_decision_recommends_rollout_on_primary_win_no_guardrail_harm() -> None:
+    """Decision engine recommends staged rollout when primary metric wins and guardrails are safe.
+
+    Constructs a result table where activation lifts by 2pp (p=0.01) and all guardrail
+    metrics (cancellation, match latency, support tickets) show no significant harm.
+    Expects the decision text to recommend rollout with no issues raised.
+    """
     df = pd.DataFrame(
         [
             {"metric": "activated_within_7d", "effect_abs": 0.02, "p_value": 0.01},

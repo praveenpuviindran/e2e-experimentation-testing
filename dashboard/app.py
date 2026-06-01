@@ -1,3 +1,23 @@
+# MindLift Experiment Workflow Dashboard
+#
+# This Streamlit app is the final deliverable for an end-to-end A/B experiment
+# on MindLift's onboarding flow (control vs redesigned treatment).
+#
+# The dashboard walks through eight steps:
+#   1. Experiment design and metric definitions
+#   2. Workflow and tech stack overview
+#   3. Headline KPIs (activation lift, variant summary table)
+#   4. Conversion funnel and daily activation trend
+#   5. Segment diagnostics (channel, device, age bucket)
+#   6. Data quality and realism validation
+#   7. Final product decision and rollout action plan
+#   8. Technical appendix (simulation spec, readout, walkthrough notes)
+#
+# How to run locally:
+#   make final-deliverable       # generates data + launches app
+#   # or:
+#   streamlit run dashboard/app.py
+
 from __future__ import annotations
 
 import os

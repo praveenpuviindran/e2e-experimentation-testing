@@ -2,6 +2,16 @@ from src.data_gen.generate_data import SimulationConfig, simulate_data
 
 
 def test_simulation_outputs_and_realism_signals() -> None:
+    """Simulate 2000 users and verify all output tables exist with realistic noise signals.
+
+    Checks that:
+    - All 7 required warehouse tables are present
+    - User count and uniqueness are correct
+    - Noncompliance (assigned != exposed variant) exceeds 5%
+    - Duplicate logical events exist for downstream dedupe logic
+    - Missing event properties are present (tests null-handling downstream)
+    - Acquisition-channel heterogeneity in onboarding conversion exceeds 3pp
+    """
     cfg = SimulationConfig(n_users=2000, seed=123)
     frames = simulate_data(cfg)
 

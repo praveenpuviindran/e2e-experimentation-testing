@@ -1,156 +1,119 @@
-# MindLift Experiment Workflow Project
+# MindLift Experiment Workflow
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Live Dashboard](https://img.shields.io/badge/live%20app-streamlit-red)](https://e2e-experimentation-testing.streamlit.app/)
 
 Live Streamlit dashboard: https://e2e-experimentation-testing.streamlit.app/
 
-This repository is my end-to-end product analytics and experimentation workflow.
-I built it to demonstrate how I can move from raw event data to a clear experiment decision with reproducible engineering.
+---
 
-## What This Project Does
-I simulate and analyze an onboarding A/B experiment for **MindLift**, a subscription mental health app.
+## Project Overview
 
-- `control`: original onboarding flow
-- `treatment`: redesigned onboarding flow
-- randomization: 50/50 at signup
-- primary outcome: activation within 7 days
-- secondary outcomes: D7 and D30 retention
-- guardrails: 30-day cancellation, match latency, support tickets
+This repository is an end-to-end **product experimentation platform** built around a simulated A/B test for **MindLift**, a subscription mental health app.
 
-## Important Data Note (Synthetic Data)
-All data in this project is synthetic.
+The platform covers the full experimentation lifecycle:
+1. **Data generation** — realistic synthetic product events (users, sessions, funnel events, subscriptions, support tickets)
+2. **Warehouse modeling** — PostgreSQL schema, idempotent ETL, and an analytics metrics layer (funnels, retention, guardrails)
+3. **Statistical analysis** — effect estimation, bootstrap confidence intervals, CUPED variance reduction, power/MDE calculations, and Benjamini-Hochberg FDR correction
+4. **Decision reporting** — machine-generated experiment readout, segment diagnostics, and a Streamlit dashboard
 
-I intentionally generated synthetic product events so this repo can be public, reproducible, and safe (no real patient/user records). The generator includes realistic patterns:
-- acquisition-channel differences
-- weekday/weekend seasonality
-- event duplicates and missing fields
-- treatment noncompliance
-- heterogeneous treatment effects by segment
+> **All data is synthetic.** No real patient or user records are included. The generator intentionally injects realistic noise: duplicate events, treatment noncompliance, acquisition-channel heterogeneity, and weekday/weekend seasonality.
 
-## Why Onboarding?
-Onboarding is the first high-impact product moment. If it improves, activation and retention can improve. If it degrades UX, guardrails should catch that early. This makes onboarding a practical surface for experimentation.
+### Experiment Design
 
-## One-Command Final Deliverable
-Run this from a fresh clone:
+| Attribute | Value |
+|---|---|
+| Product | MindLift (subscription mental health app) |
+| Test surface | Onboarding flow |
+| Variants | `control` (original) vs `treatment` (redesigned) |
+| Randomization | 50/50 at signup |
+| Primary metric | Activation within 7 days (session booked) |
+| Secondary metrics | D7 retention, D30 retention |
+| Guardrail metrics | 30-day cancellation rate, match latency, support ticket volume |
+
+---
+
+## Methodology
+
+### Simulation Framework
+
+The data generator (`src/data_gen/generate_data.py`) produces a full user cohort with configurable knobs:
+
+- **n_users** — cohort size (default 75,000 for the live app)
+- **seed** — reproducibility seed
+- **Treatment effect** — activation lift is baked into the treatment assignment with a heterogeneous signal (channel and age-bucket modifiers)
+- **Noncompliance** — a configurable fraction of users are exposed to the opposite variant
+- **Noise injection** — duplicate event rows, missing `properties_json`, and realistic channel-specific conversion differences
+
+The generator outputs 7 tables mirroring the PostgreSQL warehouse schema: `dim_users`, `fact_events`, `fact_sessions`, `fact_subscriptions`, `fact_cancellations`, `fact_support_tickets`, `fact_matches`.
+
+### CUPED Variance Reduction
+
+CUPED (Controlled-experiment Using Pre-Experiment Data) reduces the variance of the treatment effect estimate by regressing out a correlated pre-experiment covariate:
+
+```
+y_adjusted = y − θ × (x − mean(x))
+```
+
+where `θ = Cov(y, x) / Var(x)`. This shrinks the standard error of the estimate without touching the expected value, improving statistical power at fixed sample size. The `pre_treatment_sessions_30d` column in `dim_users` serves as the covariate.
+
+### FDR Correction (Benjamini-Hochberg)
+
+When testing multiple metrics simultaneously (activation, D7 retention, D30 retention, cancellation, match latency, support tickets), the family-wise false-discovery rate inflates. The platform applies the **Benjamini-Hochberg procedure** to adjust p-values:
+
+```
+q_i = p_(i) × m / i    (corrected to be monotone, capped at 1.0)
+```
+
+where p-values are sorted ascending and m is the total number of tests. This controls the expected proportion of false discoveries at a specified FDR level (default 5%).
+
+---
+
+## PostgreSQL Schema
+
+The warehouse schema is defined in `sql/schema/schema.sql` (idempotent DDL).
+
+| Table | Description |
+|---|---|
+| `dim_users` | One row per user; holds signup timestamp, acquisition channel, device, age bucket, assigned variant, actually-exposed variant, baseline pre-treatment session count |
+| `fact_events` | Raw product events (signup, onboarding_started, onboarding_completed, session_booked, etc.) with JSONB properties |
+| `fact_sessions` | Session-level records with start/end timestamps |
+| `fact_subscriptions` | Subscription records per user (plan type and price) |
+| `fact_cancellations` | Cancellation events with reason; linked to subscriptions |
+| `fact_support_tickets` | Support ticket records with category and created timestamp |
+| `fact_matches` | Therapist-match records with match timestamp per user |
+
+Key indexes are created on `signup_ts`, `(assigned_variant, actually_exposed_variant)`, and `(user_id, event_ts)` for efficient funnel and retention queries.
+
+---
+
+## Setup: Running the Full Pipeline Locally
+
+### Prerequisites
+
+- Python 3.10+
+- PostgreSQL (only required for the full warehouse pipeline; the Streamlit app runs without it)
+
+### Install dependencies
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Fastest path — run the Streamlit dashboard
 
 ```bash
 make final-deliverable
 ```
 
-What it does:
-1. Creates/updates `.venv` and installs dependencies
-2. Generates synthetic raw data (`data/raw/*.csv`)
-3. Builds dashboard data tables/readout (`reports/tables/*.csv`, markdown reports)
-4. Launches Streamlit (`http://127.0.0.1:8501`)
+This single command creates the venv, generates synthetic data, builds all dashboard artifacts, and launches the app at `http://127.0.0.1:8501`.
 
-## Repository Layout
-```text
-experimentation-platform/
-  README.md
-  Makefile
-  requirements.txt
-  .env.example
-  /src
-    /data_gen        # synthetic generator + realism knobs
-    /pipeline        # schema apply, load, QA, metrics build, S3 sync
-    /analysis        # experiment analysis + dashboard bundle build
-    /utils           # config + logging helpers
-  /sql
-    /schema          # DDL
-    /metrics         # funnels, retention, guardrails, readout SQL
-  /dashboard         # Streamlit final deliverable
-  /data
-    /raw
-    /processed
-  /reports
-    /figures
-    /tables
-  /docs
-    simulation_spec.md
-  /tests
-```
+### Full warehouse pipeline (requires PostgreSQL)
 
-## End-to-End Workflow
-### 1) Generate realistic raw events (Python)
-- module: `src/data_gen/generate_data.py`
-- outputs: `dim_users`, `fact_events`, `fact_sessions`, subscriptions, cancellations, support, matches
+1. Configure your local Postgres credentials in `.env` (copy from `.env.example`):
 
-### 2) Load and model warehouse tables (PostgreSQL + SQL)
-- schema: `sql/schema/schema.sql`
-- loader: `src/pipeline/load_to_postgres.py`
-- supports idempotent upserts and staging-table load pattern
-
-### 3) Build analytics metrics layer (SQL)
-- `sql/metrics/funnels.sql`
-- `sql/metrics/retention.sql`
-- `sql/metrics/guardrails.sql`
-- `sql/metrics/experiment_readout_tables.sql`
-
-### 4) Run experiment analysis (Python)
-- module: `src/analysis/run_analysis.py`
-- includes effect estimation, CIs, CUPED, power/MDE, multiple-metric correction, segment cuts
-
-### 5) Produce project readout + dashboard assets
-- report markdown in `reports/`
-- dashboard tables in `reports/tables/`
-- Streamlit app in `dashboard/app.py`
-
-## Commands
-### Core deliverable
-- `make final-deliverable`: fastest path to the finished project walkthrough dashboard
-
-### Full warehouse + analysis pipeline
-- `make setup`: create `.venv`, install deps
-- `make test-db`: test/create target Postgres DB
-- `make schema`: apply DDL
-- `make generate`: create synthetic raw CSVs
-- `make load`: load CSVs into Postgres
-- `make qa`: data quality checks
-- `make metrics`: create SQL metrics layer
-- `make analyze`: run statistical analysis
-- `make report`: build markdown outputs
-- `make pipeline`: `generate -> load -> qa -> metrics -> analyze -> report`
-- `make bootstrap`: `setup -> test-db -> pipeline`
-
-### Optional utilities
-- `make s3-upload`: upload raw data to S3
-- `make s3-download`: pull raw data from S3
-- `make dashboard-data`: rebuild dashboard tables/readout only
-- `make dashboard`: run Streamlit app
-
-## Tech Stack and Skillsets Demonstrated
-### Languages
-- Python 3.10+
-- SQL (PostgreSQL dialect)
-
-### Core libraries and frameworks
-- Data/compute: `pandas`, `numpy`, `scipy`
-- Statistical analysis: `statsmodels`, `scikit-learn`
-- Database + loading: `sqlalchemy`, `psycopg2-binary`
-- Visualization/reporting: `matplotlib`, `streamlit`
-- Config/testing: `python-dotenv`, `pytest`
-- Optional cloud sync: `boto3`
-
-### Engineering skills shown in this repo
-- analytics SQL modeling (funnel, retention, guardrails)
-- experiment design and interpretation (primary metric vs guardrails)
-- robust ETL/load patterns (staging + upsert, idempotency)
-- statistical workflow automation (CUPED, MDE/power, corrections)
-- reproducible project structure (repo-first, Make targets, tests)
-- stakeholder communication artifacts (readout + interactive dashboard)
-
-## Outputs
-- final dashboard: `dashboard/app.py` (served by Streamlit)
-- experiment readout: `reports/experiment_readout.md`
-- dashboard walkthrough notes: `reports/dashboard_walkthrough.md`
-- tables: `reports/tables/*.csv`
-- figures: `reports/figures/*.png`
-
-## Postgres Setup Notes
-If you run warehouse commands, set `.env` using your local Postgres user.
-
-If you get:
-`FATAL: role "postgres" does not exist`
-
-set:
 ```env
 PGUSER=<your_local_postgres_user>
 PGPASSWORD=<password_if_required>
@@ -159,5 +122,92 @@ PGPORT=5432
 PGDATABASE=mindlift
 ```
 
-## Documentation
-- simulation assumptions and realism knobs: `docs/simulation_spec.md`
+2. Run the pipeline end-to-end:
+
+```bash
+make bootstrap   # setup → test-db → generate → load → qa → metrics → analyze → report
+```
+
+Or step by step:
+
+```bash
+make setup       # create .venv, install deps
+make test-db     # create target Postgres database
+make schema      # apply DDL
+make generate    # generate synthetic CSVs to data/raw/
+make load        # load CSVs into Postgres
+make qa          # data quality checks
+make metrics     # build SQL metrics layer
+make analyze     # run statistical analysis
+make report      # produce markdown readout
+make dashboard   # launch Streamlit app
+```
+
+### Run tests
+
+```bash
+pytest tests/
+```
+
+---
+
+## Repository Layout
+
+```text
+e2e-experimentation-testing/
+  README.md
+  Makefile
+  requirements.txt
+  .env.example
+  src/
+    data_gen/
+      generate_data.py        # synthetic data generator with realism knobs
+    pipeline/
+      apply_schema.py         # apply DDL to Postgres
+      load_to_postgres.py     # idempotent upsert loader
+      build_metrics.py        # SQL metrics layer builder
+      data_quality_checks.py  # QA assertions
+      s3_sync.py              # optional S3 upload/download
+    analysis/
+      run_analysis.py         # orchestrate full statistical analysis
+      cuped.py                # CUPED variance reduction
+      multiple_testing.py     # Benjamini-Hochberg FDR correction
+      stats_utils.py          # bootstrap CI, effect estimation
+      power.py                # MDE and required sample size calculations
+      build_report.py         # generate experiment readout
+      build_dashboard_bundle.py
+    utils/
+      config.py
+      logging.py
+  sql/
+    schema/schema.sql         # PostgreSQL DDL (idempotent)
+    metrics/
+      funnels.sql
+      retention.sql
+      guardrails.sql
+      experiment_readout_tables.sql
+  dashboard/
+    app.py                    # Streamlit final deliverable
+  data/
+    raw/                      # generated CSVs
+    processed/
+  reports/
+    figures/
+    tables/
+  docs/
+    simulation_spec.md
+  tests/
+```
+
+---
+
+## Key Outputs
+
+| Artifact | Path |
+|---|---|
+| Streamlit dashboard | `dashboard/app.py` (served by `make dashboard`) |
+| Experiment readout | `reports/experiment_readout.md` |
+| Dashboard walkthrough | `reports/dashboard_walkthrough.md` |
+| Summary tables | `reports/tables/*.csv` |
+| Figures | `reports/figures/*.png` |
+| Simulation spec | `docs/simulation_spec.md` |

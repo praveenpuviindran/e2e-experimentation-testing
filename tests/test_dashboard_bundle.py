@@ -23,12 +23,22 @@ def _sample_user_level() -> pd.DataFrame:
 
 
 def test_compute_variant_summary_shape() -> None:
+    """Variant summary should contain one row per variant with the expected metric columns.
+
+    Given a user-level table with 2 variants (control, treatment), the summary should
+    return exactly 2 rows and include key rate columns used by the dashboard.
+    """
     summary = compute_variant_summary(_sample_user_level())
     assert len(summary) == 2
     assert {"activation_rate_7d", "retention_rate_d7", "noncompliance_rate"}.issubset(summary.columns)
 
 
 def test_compute_funnel_has_signup_and_activation_rows() -> None:
+    """Funnel table should have one row per (step, variant) pair including signup and activation.
+
+    With 2 variants and 5 funnel steps (signup, onboarding_started, onboarding_completed,
+    session_booked, activated_within_7d), the funnel frame should have exactly 10 rows.
+    """
     funnel = compute_funnel(_sample_user_level())
     assert {"signup", "activated_within_7d"}.issubset(set(funnel["step"]))
     assert len(funnel) == 10

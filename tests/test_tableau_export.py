@@ -22,6 +22,11 @@ def _sample_user_level() -> pd.DataFrame:
 
 
 def test_build_variant_summary_shapes() -> None:
+    """Variant summary export should produce one row per variant and one row per metric for lift.
+
+    With 2 variants and 6 numeric metrics, the grouped table has 2 rows and the lift
+    table has 6 rows — one per metric with control_value, treatment_value, and absolute_lift.
+    """
     grouped, lift = _build_variant_summary(_sample_user_level())
     assert len(grouped) == 2
     assert len(lift) == 6
@@ -29,6 +34,11 @@ def test_build_variant_summary_shapes() -> None:
 
 
 def test_build_funnel_has_all_steps_per_variant() -> None:
+    """Funnel export should contain all 5 steps for each of the 2 variants (10 rows total).
+
+    Each funnel step should appear exactly once per variant, and all canonical step names
+    from signup through activation must be present.
+    """
     funnel = _build_funnel(_sample_user_level())
     assert len(funnel) == 10
     assert set(funnel["step_name"]) == {
